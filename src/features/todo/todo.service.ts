@@ -7,7 +7,7 @@ export class TodoService {
   private readonly key = 'todos';
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
-  async create(dto: CreateTodoDTO) {
+  async create(dto: CreateTodoDTO, userId: string) {
     const id = Date.now().toString();
     const todo = {
       id,
@@ -15,48 +15,32 @@ export class TodoService {
       content: dto.content,
       completed: false,
     };
-    const data = await this.redis.get(this.key);
-    const todos = data ? JSON.parse(data) : [];
+    await this.redis.hset(`${this.key}:user:${userId}`, id, JSON.stringify(todo));
 
-    todos.push(todo);
-
-    await this.redis.set(this.key, JSON.stringify(todos));
+   
     return todo;
   }
 
-  async findAll() {
-    const todos = await this.redis.get(this.key);
+  async findAll(userId: string) {
+    const todos = await this.redis.hgetall(`${this.key}:user:${userId}`);
     if (!todos) return [];
-    return JSON.parse(todos);
+    const data = Object.values(todos).map(t => JSON.parse(t));
+    return data
   }
 
-  async findOne(id: string) {
-    const data = await this.redis.get(this.key);
+  async update(id: string, dto: Partial<CreateTodoDTO>, userId: string) {
+    const data = await this.redis.hget(`${this.key}:user:${userId}`, id);
     if (!data) throw new NotFoundException('Todo not found');
     const todos = JSON.parse(data);
-    const todo = todos.find((f) => f.id === id);
-    if (!todo) throw new NotFoundException('Todos not found!');
-    return todo;
+    const updated = {...todos, ...dto};
+    await this.redis.hset(`${this.key}:user:${userId}`, id, JSON.stringify(updated));
+    return updated;
   }
 
-  async update(id: string, dto: Partial<CreateTodoDTO>) {
-    const data = await this.redis.get(this.key);
+  async remove(id: string, userId: string) {
+    const data = await this.redis.hget(`${this.key}:user:${userId}`, id);
     if (!data) throw new NotFoundException('Todo not found');
-    const todos = JSON.parse(data);
-    const todo = todos.findIndex((f) => f.id === id);
-    if ( todo === -1) throw new NotFoundException('Todos not found!');
-    todos[todo] = { ...todos[todo], ...dto };
-    await this.redis.set(this.key, JSON.stringify(todos));
-    return todos[todo];
-  }
-
-  async remove(id: string) {
-    const data = await this.redis.get(this.key);
-    if (!data) throw new NotFoundException('Todo not found');
-
-    const todos = JSON.parse(data).filter((f) => f.id !== id);
-    await this.redis.set(this.key, JSON.stringify(todos));
-
+    await this.redis.hdel(`${this.key}:user:${userId}`, id);
     return {
       message: `Todo ${id} is remove`,
     };

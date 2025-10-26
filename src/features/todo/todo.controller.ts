@@ -3,33 +3,31 @@ import { CreateTodoDTO } from "./dto/create-todo.dto";
 import { TodoService } from "./todo.service";
 import { AuthGuard } from "src/guard/auth.guard";
 
-
+@UseGuards(AuthGuard)
 @Controller('todo')
 export class TodoController{
     constructor(private readonly todoService : TodoService){}
-     @UseGuards(AuthGuard)
     @Post()
     createTodo(@Body() dto: CreateTodoDTO, @Req() req ){
-        return this.todoService.create(dto);
-    }
-
-    @Get()
-    findAllTodo(){
-        return this.todoService.findAll();
+        const {userId} = req.user;
+        return this.todoService.create(dto, userId);
     }
 
     @Get(':id')
-    findOne(@Param('id') id: string){
-        return this.todoService.findOne(id)
+    findAllTodoOfUser(@Param('id') userId: string){
+        return this.todoService.findAll(userId);
     }
 
     @Put(':id')
-    update(@Param('id') id: string,@Body() dto: CreateTodoDTO ){
-        return this.todoService.update(id, dto);
+    update(@Param('id') id: string,@Body() dto: CreateTodoDTO , @Req() req){
+        const {userId} = req.user;
+        return this.todoService.update(id, dto,userId);
+
     }
 
     @Delete(':id')
-    delete(@Param('id') id: string){
-        return this.todoService.remove(id)
+    delete(@Param('id') id: string, @Req() req){
+        const {userId} = req.user;
+        return this.todoService.remove(id, userId)
     }
 }
