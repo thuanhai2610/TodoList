@@ -1,10 +1,24 @@
-
 services:
-  redis: 
-     image: redis:latest
-     container_name: redis-server
-     ports:
-       - "6379:6379"
-     volumes: 
-       - ./data:/data
-     command: ["redis-server", "--appendonly", "yes"]
+  backend:
+    build: .
+    container_name: backend-todo
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+    environment:
+      - HOST_REDIS=redis
+      - PORT_REDIS=6379
+    networks:
+      - app-network
+
+  redis:
+    image: redis:latest
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+networks:
+  app-network: {}
