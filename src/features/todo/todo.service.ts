@@ -3,41 +3,90 @@ import Redis from 'ioredis';
 import { CreateTodoDTO } from './dto/create-todo.dto';
 import { PriorityEnum } from './enum/priority.enum';
 import { StatusTodo } from './enum/status-todo.enum';
-
+import { InjectRepository } from '@nestjs/typeorm';
+import { Todo } from 'src/entity/todo.entity';
+import { Repository } from 'typeorm';
+import { User } from 'src/entity/user.entity';
+const TTL = 60;
 @Injectable()
 export class TodoService {
   private readonly key = 'todos';
-  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    @InjectRepository(Todo) private todoRepository: Repository<Todo>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+  ) {}
 
-  async create(dto: CreateTodoDTO, userId: string) {
-    const id = Date.now().toString();
-    const todo = {
-      id,
+  async create(dto: CreateTodoDTO, userId: number) {
+    const user = await this.userRepository.findOneBy({ userId });
+    if (!user) throw new NotFoundException('User not found');
+
+    const createTodoRepo = this.todoRepository.create({
       title: dto.title,
       content: dto.content,
-      duration: dto.duration || null,
+      duration: dto.duration ? new Date(dto.duration).toISOString() : undefined,
       priority: dto.priority || PriorityEnum.Low,
       status: dto.status || StatusTodo.Pending,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      user,
+    });
+    const saveRepo = await this.todoRepository.save(createTodoRepo);
+  
+    this.redis.expire(`${this.key}:${userId}`, TTL);
+    const { user: OrginalUser, ...todoData } = saveRepo;
+    const safeUser = {
+      email: OrginalUser.email,
+      name: OrginalUser.name,
     };
-    await this.redis.hset(`${this.key}:${userId}`, id, JSON.stringify(todo));
-
-    return todo;
+    const safeTodo = {
+      ...todoData,
+      user: safeUser,
+    };
+      await this.redis.hset(
+      `${this.key}:${userId}`,
+      saveRepo.todoId,
+      JSON.stringify(safeTodo),
+    );
+    return safeTodo;
   }
 
-  async findAll(userId: string) {
+  async findAll(userId: number) {
     const todos = await this.redis.hgetall(`${this.key}:${userId}`);
-    if (!todos) return [];
+    if (!todos || Object.keys(todos).length === 0) {
+      const dbTodo = await this.todoRepository.find({
+        where: { user: { userId } },
+      });
+      if (dbTodo.length > 0) {
+        for (const todo of dbTodo)
+          await this.redis.hset(
+            `${this.key}:${userId}`,
+            todo.todoId,
+            JSON.stringify(todo),
+          );
+        this.redis.expire(`${this.key}:${userId}`, TTL);
+      }
+      return dbTodo;
+    }
     const data = Object.values(todos).map((t) => JSON.parse(t));
     return data;
   }
 
-  async findOne(userId: string, id: string) {
+  async findOne(userId: number, id: string) {
+    const todoIdNumber = parseInt(id, 10);
     const todos = await this.redis.hget(`${this.key}:${userId}`, id);
-    if (!todos) return [];
-    return JSON.parse(todos);
-  }
+    if (todos) {
+      const parseTodo = JSON.parse(todos);
+      return parseTodo;
+    }
+    const todoRepo = await this.todoRepository.findOne({
+      where : {
+        todoId: todoIdNumber,
+        user : {userId}}
+      })
+      await this.redis.hset(`${this.key}:user:${userId}`, id, JSON.stringify(todoRepo));
+      this.redis.expire(this.key, TTL);
+      return todoRepo;
+    }
+  
   async update(id: string, dto: Partial<CreateTodoDTO>, userId: string) {
     const data = await this.redis.hget(`${this.key}:${userId}`, id);
     if (!data) throw new NotFoundException('Todo not found');

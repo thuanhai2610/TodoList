@@ -11,13 +11,11 @@ export class AuthGuard implements CanActivate{
         if(!token) throw new UnauthorizedException('Token is missing!');
         try {
             const payload = await this.jwtService.verify(token, {
-                secret: process.env.JWT_SECRET
+                secret: process.env.JWT_ACCESS_TOKEN
             })
             req.user = payload;
-            console.log(payload);
-            
         } catch (error) {
-            throw new InternalServerErrorException('Server error', error)
+            throw new UnauthorizedException('Token is experiesed', error)
         }
         return true;
     }

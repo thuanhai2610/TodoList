@@ -11,61 +11,81 @@ import * as bcrypt from 'bcrypt';
 import { LoginDTO } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from 'src/entity/user.entity';
+import { Repository } from 'typeorm';
 
+const TTL = 60;
 @Injectable()
 export class AuthService {
   private key = 'users';
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly jwtService: JwtService,
+    @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
   async register(dto: RegisterDTO) {
-    const data = await this.redis.get(this.key);
-    const users = data ? JSON.parse(data) : [];
-
-    const userExisted = users.find((u) => u.email === dto.email);
-    if (userExisted) throw new ConflictException('Email is already');
+    const data = await this.redis.hget(this.key, dto.email);
+    const userRepo = await this.userRepository.findOneBy({ email: dto.email });
+    if (userRepo) throw new ConflictException('Email is already');
+    if (data) throw new ConflictException('Email is already');
 
     const hassPass = await bcrypt.hash(dto.password, 10);
 
     const user = {
-      userId: 'user' + Date.now().toString(),
       name: dto.name,
       email: dto.email,
       password: hassPass,
       isVerify: true,
     };
-    users.push(user);
-    await this.redis.set(this.key, JSON.stringify(users));
-    const { password, ...safeUser } = user;
+    const newUser = this.userRepository.create(user);
+    const createUser = await this.userRepository.save(newUser);
+    await this.redis.hset(
+      this.key,
+      createUser.email,
+      JSON.stringify(createUser),
+    );
+     this.redis.expire(this.key, TTL);
+    const { password, ...safeUser } = createUser;
     return safeUser;
   }
 
   async login(dto: LoginDTO, res: Response) {
     const { email, password } = dto;
-    const data = await this.redis.get(this.key);
-    const users = data ? JSON.parse(data) : [];
-    const findEmail = users.find((u) => u.email === email);
-    if (!findEmail || !(await bcrypt.compare(password, findEmail.password)))
-      throw new NotFoundException('Email or Password not correct');
+    const data = await this.redis.hget(this.key, email);
+    let userData;
+    if (data) {
+      userData = JSON.parse(data);
+    } else {
+      userData = await this.userRepository.findOneBy({ email });
+      if (!userData) {
+        throw new NotFoundException('Email or Password not correct!');
+      }
+    }
+    const isMatch = await bcrypt.compare(password, userData.password);
+    if (!isMatch) throw new NotFoundException('Email or Password not correct!');
     const payload = {
-      userId: findEmail.userId,
-      email: findEmail.email,
-      name: findEmail.name,
+      userId: userData.userId,
+      email: userData.email,
+      name: userData.name,
     };
+
     const accessToken = await this.generateAccessToken(payload);
     this.generateRefreshToken(payload, res);
-    const {password: _, ...safeUser } = findEmail;
+    const { password: _, ...safeUser } = userData;
+    if (!data) {
+      await this.redis.hset(this.key, email, JSON.stringify(userData));
+    }
     return {
-      accessToken: accessToken,
+      accessToken,
       data: safeUser,
     };
   }
 
   async generateAccessToken(payload: {
     email: string;
-    userId: string;
+    userId: number;
     name: string;
   }): Promise<string> {
     const accessToken = this.jwtService.sign(
@@ -74,18 +94,18 @@ export class AuthService {
         userId: payload.userId,
         name: payload.name,
       },
-      { secret: process.env.JWT_SECRET },
+      { secret: process.env.JWT_ACCESS_TOKEN },
     );
     return accessToken;
   }
 
   async generateRefreshToken(
-    payload: { email: string; userId: string; name?: string },
+    payload: { email: string; userId: number; name?: string },
     res: Response,
   ) {
     const refresToken = this.jwtService.sign(
       { userId: payload.userId, email: payload.email },
-      { secret: process.env.JWT_SECRET, expiresIn: '7d' },
+      { secret: process.env.JWT_REFRESH_TOKEN, expiresIn: '7d' },
     );
     res.cookie('refreshToken', refresToken, {
       httpOnly: true,
@@ -103,24 +123,32 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-    var payload: any
-       payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_SECRET,
+      var payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_TOKEN,
       });
+      console.log(payload);
     } catch (error) {
       throw new UnauthorizedException('Invalid refreshtoken');
     }
     const userToken = await this.redis.get(`refresh_token:${payload.userId}`);
-    if(!userToken) throw new UnauthorizedException('Token is expires. Please login again!');
-    const data = await this.redis.get(this.key)
-    const user = data ? JSON.parse(data) : [];
-    const findUser = user.find(u => u.userId === payload.userId);
-    const newPayload = {userId: findUser.userId, email: findUser.email, name: findUser.name};
-    const accessToken = await this.generateAccessToken(newPayload);
-    const {password, ...safeUser } = findUser;
-    return {
-        accessToken: accessToken,
-        data : safeUser
+    if (!userToken)
+      throw new UnauthorizedException('Token is expires. Please login again!');
+    const user = await this.userRepository.findOneBy({
+      userId: payload.userId,
+    });
+    if (!user) {
+      throw new NotFoundException('User is not found');
     }
+    const newPayload = {
+      userId: user.userId,
+      email: user.email,
+      name: user.name,
+    };
+    const accessToken = await this.generateAccessToken(newPayload);
+    const { password, ...safeUser } = user;
+    return {
+      accessToken: accessToken,
+      data: safeUser,
+    };
   }
 }
