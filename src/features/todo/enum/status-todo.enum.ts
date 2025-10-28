@@ -1,4 +1,4 @@
 export enum StatusTodo {
-    Pending = 'Pending',
-    Done = 'Done'
+  Pending = 'Pending',
+  Done = 'Done',
 }

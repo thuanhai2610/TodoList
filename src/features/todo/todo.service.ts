@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import { CreateTodoDTO } from './dto/create-todo.dto';
 import { PriorityEnum } from './enum/priority.enum';
@@ -7,6 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Todo } from 'src/entity/todo.entity';
 import { Repository } from 'typeorm';
 import { User } from 'src/entity/user.entity';
+import { ResponseTodo } from './interface/todo.interface';
 const TTL = 60;
 @Injectable()
 export class TodoService {
@@ -20,11 +26,11 @@ export class TodoService {
   async create(dto: CreateTodoDTO, userId: number) {
     const user = await this.userRepository.findOneBy({ userId });
     if (!user) throw new NotFoundException('User not found');
-
+    const getDuration = this.getDuration(dto.duration);
     const createTodoRepo = this.todoRepository.create({
       title: dto.title,
       content: dto.content,
-      duration: dto.duration ? new Date(dto.duration).toISOString() : undefined,
+      duration: getDuration,
       priority: dto.priority ?? PriorityEnum.Low,
       status: dto.status ?? StatusTodo.Pending,
       user,
@@ -45,41 +51,82 @@ export class TodoService {
       saveRepo.todoId,
       JSON.stringify(safeTodo),
     );
-    this.redis.expire(`${this.key}:${userId}`, TTL);
+    await this.redis.expire(`${this.key}:${userId}`, TTL);
     return safeTodo;
   }
 
-  async findAll(userId: number) {
+  async findAll(
+    userId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    data: ResponseTodo[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  }> {
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
     const todos = await this.redis.hgetall(`${this.key}:${userId}`);
     if (Object.keys(todos).length === 0) {
-      const dbTodo = await this.todoRepository.find({
+      const [todos, total] = await this.todoRepository.findAndCount({
         where: { user: { userId } },
+        order: { createdAt: 'ASC' },
+        skip: startIndex,
+        take: limit,
       });
-      if (dbTodo.length > 0) {
-        await Promise.all(
-          dbTodo.map((todo) =>
-            this.redis.hset(
-              `${this.key}:${userId}`,
-              todo.todoId.toString(),
-              JSON.stringify(todo),
-            ),
+      if (!todos || todos.length === 0)
+        throw new NotFoundException('No todos found');
+      await Promise.all(
+        todos.map((todo) =>
+          this.redis.hset(
+            `${this.key}:${userId}`,
+            todo.todoId.toString(),
+            JSON.stringify(todo),
           ),
-        );
-        this.redis.expire(`${this.key}:${userId}`, TTL);
-      }
-
-      return dbTodo;
+        ),
+      );
+      await this.redis.expire(`${this.key}:${userId}`, TTL);
+      return {
+        data: todos as ResponseTodo[],
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
     }
 
-    return Object.values(todos).map((t) => JSON.parse(t));
+    const parse = Object.values(todos).map(
+      (t) => JSON.parse(t) as ResponseTodo,
+    );
+    const sorted = parse.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const paginated = sorted.slice(startIndex, endIndex);
+
+    return {
+      data: paginated,
+      pagination: {
+        total: parse.length,
+        page,
+        limit,
+        totalPages: Math.ceil(parse.length / limit),
+      },
+    };
   }
 
   async findOne(userId: number, id: string) {
     const todos = await this.redis.hget(`${this.key}:${userId}`, id);
-    if (todos) return JSON.parse(todos);
+    if (todos) return JSON.parse(todos) as ResponseTodo;
     const todoRepo = await this.todoRepository.findOne({
       where: {
-        todoId: Number(id),
+        todoId: id,
         user: { userId },
       },
     });
@@ -89,7 +136,7 @@ export class TodoService {
         id,
         JSON.stringify(todoRepo),
       );
-      this.redis.expire(this.key, TTL);
+      await this.redis.expire(this.key, TTL);
       return todoRepo;
     } else {
       return {
@@ -100,12 +147,16 @@ export class TodoService {
 
   async update(id: string, dto: Partial<CreateTodoDTO>, userId: number) {
     const key = `${this.key}:${userId}`;
+    const updateDuration = this.getDuration(dto.duration);
     const findEntity = await this.todoRepository.findOne({
-      where: { todoId: Number(id), user: { userId } },
+      where: { todoId: id, user: { userId } },
     });
 
-    if (!findEntity) throw new Error('Todo not found!');
-    Object.assign(findEntity, dto, { updatedAt: new Date().toISOString() });
+    if (!findEntity) throw new NotFoundException('Todo not found!');
+    Object.assign(findEntity, dto, {
+      duration: updateDuration ?? findEntity,
+      updatedAt: new Date().toISOString(),
+    });
 
     const updated = await this.todoRepository.save(findEntity);
 
@@ -113,12 +164,13 @@ export class TodoService {
       todoId: updated.todoId,
       title: updated.title,
       status: updated.status,
+      duration: updated.duration,
       priority: updated.priority,
       content: updated.content,
       updatedAt: updated.updatedAt,
     };
     await this.redis.hset(key, id, JSON.stringify(cacheData));
-    this.redis.expire(key, TTL);
+    await this.redis.expire(key, TTL);
 
     return updated;
   }
@@ -127,7 +179,7 @@ export class TodoService {
     await this.redis.hdel(`${this.key}:${userId}`, id);
     const removeTodoRepo = await this.todoRepository.findOne({
       where: {
-        todoId: Number(id),
+        todoId: id,
         user: { userId: userId },
       },
     });
@@ -137,5 +189,24 @@ export class TodoService {
     return {
       message: `Todo ${id} is remove`,
     };
+  }
+
+  private getDuration(input?: string): string | undefined {
+    const base = new Date();
+    if (!input) return base.toISOString();
+    const createdAt = new Date();
+    const dur = input.toLowerCase();
+    const time = new Date(createdAt);
+
+    const day = parseInt(dur.match(/(\d+)d/)?.[1] ?? '0');
+    const hour = parseInt(dur.match(/(\d+)h/)?.[1] ?? '0');
+    const min = parseInt(dur.match(/(\d+)m/)?.[1] ?? '0');
+    if (day + hour + min === 0 && isNaN(Date.parse(dur)))
+      throw new BadRequestException('Invalid duration (1h, 1d, 1d15m)');
+
+    time.setDate(time.getDate() + day);
+    time.setHours(time.getHours() + hour);
+    time.setMinutes(time.getMinutes() + min);
+    return time.toISOString();
   }
 }

@@ -9,10 +9,11 @@ import { User } from 'src/entity/user.entity';
 import { JwtModuleConfig } from 'src/guard/jwt.module';
 
 @Module({
-    imports: [RedisModule,       
-      JwtModuleConfig,
-        TypeOrmModule.forFeature([Todo, User])
-    ],
+  imports: [
+    RedisModule,
+    JwtModuleConfig,
+    TypeOrmModule.forFeature([Todo, User]),
+  ],
   controllers: [TodoController],
   providers: [TodoService, AuthGuard],
 })

@@ -14,6 +14,11 @@ import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entity/user.entity';
 import { Repository } from 'typeorm';
+import {
+  PayloadRFToken,
+  ResponseUser,
+  UserEntity,
+} from './interface/login.interface';
 
 const TTL = 60;
 @Injectable()
@@ -41,27 +46,27 @@ export class AuthService {
     };
     const newUser = this.userRepository.create(user);
     const createUser = await this.userRepository.save(newUser);
-    await this.redis.hset(
-      this.key,
-      createUser.email,
-      JSON.stringify(createUser),
-    );
-    await this.redis.expire(this.key, TTL);
-    const { password, ...safeUser } = createUser;
+    await this.redis
+      .multi()
+      .hset(this.key, createUser.email, JSON.stringify(createUser))
+      .expire(this.key, TTL)
+      .exec();
+    const { password: _, ...safeUser } = createUser;
     return safeUser;
   }
 
   async login(dto: LoginDTO, res: Response) {
     const { email, password } = dto;
     const data = await this.redis.hget(this.key, email);
-    let userData;
+    let userData: UserEntity;
     if (data) {
-      userData = JSON.parse(data);
+      userData = JSON.parse(data) as UserEntity;
     } else {
-      userData = await this.userRepository.findOneBy({ email });
-      if (!userData) {
+      const userDB = await this.userRepository.findOneBy({ email });
+      if (!userDB) {
         throw new NotFoundException('Email or Password not correct!');
       }
+      userData = userDB as UserEntity;
     }
     const isMatch = await bcrypt.compare(password, userData.password);
     if (!isMatch) throw new NotFoundException('Email or Password not correct!');
@@ -71,23 +76,23 @@ export class AuthService {
       name: userData.name,
     };
 
-    const accessToken = await this.generateAccessToken(payload);
-    this.generateRefreshToken(payload, res);
+    const accessToken = this.generateAccessToken(payload);
+    await this.generateRefreshToken(payload, res);
     const { password: _, ...safeUser } = userData;
     if (!data) {
       await this.redis.hset(this.key, email, JSON.stringify(userData));
     }
     return {
       accessToken,
-      data: safeUser,
+      data: safeUser as ResponseUser,
     };
   }
 
-  async generateAccessToken(payload: {
+  generateAccessToken(payload: {
     email: string;
     userId: number;
     name: string;
-  }): Promise<string> {
+  }): string {
     const accessToken = this.jwtService.sign(
       {
         email: payload.email,
@@ -110,7 +115,7 @@ export class AuthService {
     res.cookie('refreshToken', refresToken, {
       httpOnly: true,
       sameSite: 'strict',
-      path: 'auth/refresh-token',
+      path: 'auth/refreshToken',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     await this.redis.set(
@@ -122,20 +127,22 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string) {
+    let payload: PayloadRFToken;
     try {
-      var payload = this.jwtService.verify(refreshToken, {
+      payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_TOKEN,
       });
-      console.log(payload);
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedException('Invalid refreshtoken');
     }
     const userToken = await this.redis.get(`refresh_token:${payload.userId}`);
     if (!userToken)
       throw new UnauthorizedException('Token is expires. Please login again!');
+    console.log(payload.userId, payload);
     const user = await this.userRepository.findOneBy({
       userId: payload.userId,
     });
+    console.log(payload, payload.userId, user);
     if (!user) {
       throw new NotFoundException('User is not found');
     }
@@ -144,8 +151,8 @@ export class AuthService {
       email: user.email,
       name: user.name,
     };
-    const accessToken = await this.generateAccessToken(newPayload);
-    const { password, ...safeUser } = user;
+    const accessToken = this.generateAccessToken(newPayload);
+    const { password: _, ...safeUser } = user;
     return {
       accessToken: accessToken,
       data: safeUser,

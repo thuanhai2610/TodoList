@@ -1,0 +1,14 @@
+export interface ResponseUser {
+  userId: number;
+  name: string;
+  email: string;
+}
+
+export interface UserEntity extends ResponseUser {
+  password: string;
+}
+
+export interface PayloadRFToken extends ResponseUser {
+  iat: number;
+  exp: number;
+}

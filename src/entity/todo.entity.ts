@@ -1,42 +1,49 @@
-import { PriorityEnum } from "../features/todo/enum/priority.enum";
-import { StatusTodo } from "../features/todo/enum/status-todo.enum";
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { User } from "./user.entity";
+import { PriorityEnum } from '../features/todo/enum/priority.enum';
+import { StatusTodo } from '../features/todo/enum/status-todo.enum';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { User } from './user.entity';
 
 @Entity()
-export class Todo{
-    @PrimaryGeneratedColumn()
-    todoId: number;
-    
-    @Column()
-    title: string;
+export class Todo {
+  @PrimaryGeneratedColumn('uuid')
+  todoId: string;
 
-    @Column()
-    content: string;
+  @Column()
+  title: string;
 
-    @Column({
-        type: 'enum',
-        enum: StatusTodo,
-        default: StatusTodo.Pending
-    })
-    status: StatusTodo
+  @Column()
+  content: string;
 
-    @Column({
-        type: 'enum',
-        enum: PriorityEnum,
-        default: PriorityEnum.Low
-    })
-    priority: PriorityEnum
+  @Column({
+    type: 'enum',
+    enum: StatusTodo,
+    default: StatusTodo.Pending,
+  })
+  status: StatusTodo;
 
-    @Column({type: 'datetime', nullable: true})
-    duration: Date;
+  @Column({
+    type: 'enum',
+    enum: PriorityEnum,
+    default: PriorityEnum.Low,
+  })
+  priority: PriorityEnum;
 
-    @CreateDateColumn()
-    createdAt: Date;
+  @Column({ type: 'datetime', nullable: true })
+  duration: Date;
 
-    @UpdateDateColumn()
-    updatedAt: Date;
+  @CreateDateColumn()
+  createdAt: Date;
 
-    @ManyToOne(() => User, (user) => user.todos, {onDelete: 'CASCADE'})
-    user: User
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @ManyToOne(() => User, (user) => user.todos, { onDelete: 'CASCADE' })
+  user: User;
 }

@@ -1,7 +1,7 @@
 import { Todo } from './src/entity/todo.entity';
 import { User } from './src/entity/user.entity';
 import { DataSource } from 'typeorm';
-import 'dotenv/config'
+import 'dotenv/config';
 
 export const AppDataSource = new DataSource({
   type: 'mysql',
