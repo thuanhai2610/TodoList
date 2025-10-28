@@ -13,17 +13,22 @@ import { Todo } from 'src/entity/todo.entity';
 import { Repository } from 'typeorm';
 import { User } from 'src/entity/user.entity';
 import { ResponseTodo } from './interface/todo.interface';
+import { TodoGateWay } from './todo.gateway';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TodoAction } from './WSEvent';
 const TTL = 60;
 @Injectable()
 export class TodoService {
   private readonly key = 'todos';
   constructor(
+    private readonly todoGateWay: TodoGateWay,
+    private eventEmitter: EventEmitter2,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     @InjectRepository(Todo) private todoRepository: Repository<Todo>,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
-  async create(dto: CreateTodoDTO, userId: number) {
+  async create(dto: CreateTodoDTO, userId: string) {
     const user = await this.userRepository.findOneBy({ userId });
     if (!user) throw new NotFoundException('User not found');
     const getDuration = this.getDuration(dto.duration);
@@ -52,11 +57,16 @@ export class TodoService {
       JSON.stringify(safeTodo),
     );
     await this.redis.expire(`${this.key}:${userId}`, TTL);
+    const userIdString = userId.toString();
+    this.eventEmitter.emit(TodoAction.TodoCreated, {
+      userId: userIdString,
+      todo: safeTodo,
+    });
     return safeTodo;
   }
 
   async findAll(
-    userId: number,
+    userId: string,
     page = 1,
     limit = 10,
   ): Promise<{
@@ -121,7 +131,7 @@ export class TodoService {
     };
   }
 
-  async findOne(userId: number, id: string) {
+  async findOne(userId: string, id: string) {
     const todos = await this.redis.hget(`${this.key}:${userId}`, id);
     if (todos) return JSON.parse(todos) as ResponseTodo;
     const todoRepo = await this.todoRepository.findOne({
@@ -145,7 +155,7 @@ export class TodoService {
     }
   }
 
-  async update(id: string, dto: Partial<CreateTodoDTO>, userId: number) {
+  async update(id: string, dto: Partial<CreateTodoDTO>, userId: string) {
     const key = `${this.key}:${userId}`;
     const updateDuration = this.getDuration(dto.duration);
     const findEntity = await this.todoRepository.findOne({
@@ -175,7 +185,7 @@ export class TodoService {
     return updated;
   }
 
-  async remove(id: string, userId: number) {
+  async remove(id: string, userId: string) {
     await this.redis.hdel(`${this.key}:${userId}`, id);
     const removeTodoRepo = await this.todoRepository.findOne({
       where: {

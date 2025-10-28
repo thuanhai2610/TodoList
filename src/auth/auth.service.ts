@@ -90,7 +90,7 @@ export class AuthService {
 
   generateAccessToken(payload: {
     email: string;
-    userId: number;
+    userId: string;
     name: string;
   }): string {
     const accessToken = this.jwtService.sign(
@@ -105,7 +105,7 @@ export class AuthService {
   }
 
   async generateRefreshToken(
-    payload: { email: string; userId: number; name?: string },
+    payload: { email: string; userId: string; name?: string },
     res: Response,
   ) {
     const refresToken = this.jwtService.sign(
@@ -138,7 +138,6 @@ export class AuthService {
     const userToken = await this.redis.get(`refresh_token:${payload.userId}`);
     if (!userToken)
       throw new UnauthorizedException('Token is expires. Please login again!');
-    console.log(payload.userId, payload);
     const user = await this.userRepository.findOneBy({
       userId: payload.userId,
     });

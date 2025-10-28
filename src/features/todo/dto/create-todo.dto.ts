@@ -4,7 +4,7 @@ import { StatusTodo } from '../enum/status-todo.enum';
 
 export class CreateTodoDTO {
   @IsOptional()
-  todoId: number;
+  todoId: string;
   @IsString()
   @IsNotEmpty()
   title: string;
