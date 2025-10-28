@@ -1,4 +1,16 @@
 services:
+  db:
+    image: mysql:8
+    container_name: mysql-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=thuanhai123
+      - MYSQL_DATABASE=TodoList
+      - MYSQL_USER=appuser  
+      - MYSQL_PASSWORD=apppassword
+    ports:
+      - "3307:3306"
+    networks:
+      - app-network      
   backend:
     build: .
     container_name: backend-todo
