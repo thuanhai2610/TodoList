@@ -46,7 +46,7 @@ export class AuthService {
       createUser.email,
       JSON.stringify(createUser),
     );
-     this.redis.expire(this.key, TTL);
+    await this.redis.expire(this.key, TTL);
     const { password, ...safeUser } = createUser;
     return safeUser;
   }

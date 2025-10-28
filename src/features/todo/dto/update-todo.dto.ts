@@ -1,11 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from "class-validator";
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateTodoDTO } from './create-todo.dto';
 
-export class UpdateTodoDTO{
-  @IsOptional()
-  @IsString()
-  title?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  completed?: boolean;
-}
+export class UpdateTodoDTO extends PartialType(CreateTodoDTO) {}

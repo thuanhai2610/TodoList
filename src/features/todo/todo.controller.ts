@@ -13,6 +13,7 @@ import {
 import { CreateTodoDTO } from './dto/create-todo.dto';
 import { TodoService } from './todo.service';
 import { AuthGuard } from 'src/guard/auth.guard';
+import { UpdateTodoDTO } from './dto/update-todo.dto';
 
 
 @UseGuards(AuthGuard)
@@ -37,7 +38,7 @@ export class TodoController {
     return this.todoService.findOne(userId, id);
   }
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: CreateTodoDTO, @Req() req) {
+  update(@Param('id') id: string, @Body() dto: UpdateTodoDTO, @Req() req) {
     const { userId } = req.user;
     return this.todoService.update(id, dto, userId);
   }

@@ -22,7 +22,7 @@ import { Todo } from './entity/todo.entity';
       password: process.env.PASSWORD_DB,
       database: process.env.DATABASE_DB,
       entities: [User, Todo],
-      synchronize: true,
+      synchronize: false,
       logging: true,
     }),
     TodoModule,
