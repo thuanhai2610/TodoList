@@ -25,13 +25,12 @@ export class TodoService {
       title: dto.title,
       content: dto.content,
       duration: dto.duration ? new Date(dto.duration).toISOString() : undefined,
-      priority: dto.priority || PriorityEnum.Low,
-      status: dto.status || StatusTodo.Pending,
+      priority: dto.priority ?? PriorityEnum.Low,
+      status: dto.status ?? StatusTodo.Pending,
       user,
     });
     const saveRepo = await this.todoRepository.save(createTodoRepo);
 
-    this.redis.expire(`${this.key}:${userId}`, TTL);
     const { user: OrginalUser, ...todoData } = saveRepo;
     const safeUser = {
       email: OrginalUser.email,
@@ -46,89 +45,86 @@ export class TodoService {
       saveRepo.todoId,
       JSON.stringify(safeTodo),
     );
+    this.redis.expire(`${this.key}:${userId}`, TTL);
     return safeTodo;
   }
 
   async findAll(userId: number) {
     const todos = await this.redis.hgetall(`${this.key}:${userId}`);
-    if (!todos || Object.keys(todos).length === 0) {
+    if (Object.keys(todos).length === 0) {
       const dbTodo = await this.todoRepository.find({
         where: { user: { userId } },
       });
       if (dbTodo.length > 0) {
-        for (const todo of dbTodo)
-          await this.redis.hset(
-            `${this.key}:${userId}`,
-            todo.todoId,
-            JSON.stringify(todo),
-          );
+        await Promise.all(
+          dbTodo.map((todo) =>
+            this.redis.hset(
+              `${this.key}:${userId}`,
+              todo.todoId.toString(),
+              JSON.stringify(todo),
+            ),
+          ),
+        );
         this.redis.expire(`${this.key}:${userId}`, TTL);
       }
+
       return dbTodo;
     }
-    const data = Object.values(todos).map((t) => JSON.parse(t));
-    return data;
+
+    return Object.values(todos).map((t) => JSON.parse(t));
   }
 
   async findOne(userId: number, id: string) {
     const todos = await this.redis.hget(`${this.key}:${userId}`, id);
-    if (todos) {
-      const parseTodo = JSON.parse(todos);
-      return parseTodo;
-    }
+    if (todos) return JSON.parse(todos);
     const todoRepo = await this.todoRepository.findOne({
       where: {
         todoId: Number(id),
         user: { userId },
       },
     });
-    await this.redis.hset(
-      `${this.key}:user:${userId}`,
-      id,
-      JSON.stringify(todoRepo),
-    );
-    this.redis.expire(this.key, TTL);
-    return todoRepo;
+    if (todoRepo) {
+      await this.redis.hset(
+        `${this.key}:${userId}`,
+        id,
+        JSON.stringify(todoRepo),
+      );
+      this.redis.expire(this.key, TTL);
+      return todoRepo;
+    } else {
+      return {
+        message: 'Not Found to do for user',
+      };
+    }
   }
 
   async update(id: string, dto: Partial<CreateTodoDTO>, userId: number) {
-    const data = await this.redis.hget(`${this.key}:${userId}`, id);
-   let findEntity
-    if (!data) {
-      const updated = await this.todoRepository.update(
-        { todoId: Number(id), user: { userId } },
-        { ...dto, updatedAt: new Date().toISOString() },
-      );
-      if (updated.affected === 0) throw new Error('Todo not found!');
-      findEntity = await this.todoRepository.findOne({
-        where: { todoId: Number(id), user: { userId } },
-      });
-    } else {
-      const todos = JSON.parse(data);
+    const key = `${this.key}:${userId}`;
+    const findEntity = await this.todoRepository.findOne({
+      where: { todoId: Number(id), user: { userId } },
+    });
 
-      await this.todoRepository.update(
-        { todoId: Number(id), user: { userId } },
-        { ...todos, ...dto, updatedAt: new Date().toISOString() },
-      );
-        findEntity = await this.todoRepository.findOne({
-        where: { todoId: Number(id), user: { userId } },
-      });
-    }
+    if (!findEntity) throw new Error('Todo not found!');
+    Object.assign(findEntity, dto, { updatedAt: new Date().toISOString() });
 
-    await this.redis.hset(
-      `${this.key}:${userId}`,
-      id,
-      JSON.stringify(findEntity),
-    );
-    this.redis.expire(`${this.key}:${userId}`, TTL);
-    return findEntity;
+    const updated = await this.todoRepository.save(findEntity);
+
+    const cacheData = {
+      todoId: updated.todoId,
+      title: updated.title,
+      status: updated.status,
+      priority: updated.priority,
+      content: updated.content,
+      updatedAt: updated.updatedAt,
+    };
+    await this.redis.hset(key, id, JSON.stringify(cacheData));
+    this.redis.expire(key, TTL);
+
+    return updated;
   }
 
   async remove(id: string, userId: number) {
-    const data = await this.redis.hget(`${this.key}:${userId}`, id);
-    if (data) {
-      await this.redis.hdel(`${this.key}:${userId}`, id);
-    }
+    await this.redis.hdel(`${this.key}:${userId}`, id);
     const removeTodoRepo = await this.todoRepository.findOne({
       where: {
         todoId: Number(id),

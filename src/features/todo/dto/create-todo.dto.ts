@@ -19,7 +19,7 @@ export class CreateTodoDTO {
     
     @IsEnum(PriorityEnum)
     @IsNotEmpty()
-    priority: PriorityEnum = PriorityEnum.Low;
+    priority: PriorityEnum;
 
     @IsEnum( StatusTodo)
     @IsOptional()
