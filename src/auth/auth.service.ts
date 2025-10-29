@@ -79,9 +79,13 @@ export class AuthService {
     const accessToken = this.generateAccessToken(payload);
     await this.generateRefreshToken(payload, res);
     const { password: _, ...safeUser } = userData;
-    if (!data) {
-      await this.redis.hset(this.key, email, JSON.stringify(userData));
-    }
+
+    await this.redis
+      .multi()
+      .hset(this.key, email, JSON.stringify(userData))
+      .expire(this.key, TTL)
+      .exec();
+
     return {
       accessToken,
       data: safeUser as ResponseUser,

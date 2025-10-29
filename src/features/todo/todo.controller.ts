@@ -31,9 +31,10 @@ export class TodoController {
     @Req() req: RequestUser,
     @Query('page') page = 1,
     @Query('limit') limit = 10,
+    @Query('q') q: string,
   ) {
     const { userId } = req.user;
-    return this.todoService.findAll(userId, +page, +limit);
+    return this.todoService.findAll(userId, +page, +limit, q);
   }
 
   @Get(':id')

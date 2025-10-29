@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Socket.IO</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <h1>Socket.IO Test</h1>
+  <div id="events"></div>
+
+  <script>
+    const socket = io('http://localhost:3001', {
+      auth: {
+        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRodWFuaGFpMUBnbWFpbC5jb20iLCJ1c2VySWQiOiIxZmMwMmY3OS0zZjZkLTQxOGYtYjYyYS1iMDIyOGYxZDEyYTkiLCJuYW1lIjoiaGFpIiwiaWF0IjoxNzYxNzE4NzUyLCJleHAiOjE3NjE3MTk2NTJ9.Zdf_vwG8P5o0OzQ6_m_fPiLBBpqrWPgDgvQ6JmAmt1I'
+      }
+    });
+
+    socket.on('connect', () => {
+      console.log('✅ Connected:', socket.id);
+    });
+
+    // Listen các events
+    socket.on('TodoCreated', (data) => {
+      console.log('📝 Todo Created:', data);
+      document.getElementById('events').innerHTML += 
+        `<p>Created: ${JSON.stringify(data)}</p>`;
+    });
+
+    socket.on('TodoUpdated', (data) => {
+      console.log('✏️ Todo Updated:', data);
+      document.getElementById('events').innerHTML += 
+        `<p>Updated: ${JSON.stringify(data)}</p>`;
+    });
+
+    socket.on('TodoRemoved', (data) => {
+      console.log('🗑️ Todo Removed:', data);
+      document.getElementById('events').innerHTML += 
+        `<p>Removed: ${JSON.stringify(data)}</p>`;
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Disconnected');
+    });
+  </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { PayloadRFToken } from 'src/auth/interface/login.interface';
 import { TodoAction } from './WSEvent';
 import { OnEvent } from '@nestjs/event-emitter';
+import { ResponseTodo } from './interface/todo.interface';
 
 @WebSocketGateway(3001, { cors: { origin: '*' } })
 export class TodoGateWay implements OnGatewayConnection, OnGatewayDisconnect {
@@ -44,8 +45,18 @@ export class TodoGateWay implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
   @OnEvent(TodoAction.TodoCreated)
-  emitTodoCreated(payload: { userId: string; todo: any }) {
+  emitTodoCreated(payload: { userId: string; todo: ResponseTodo }) {
     console.log(payload.userId, payload.todo);
     this.server.to(payload.userId).emit(TodoAction.TodoCreated, payload.todo);
+  }
+
+  @OnEvent(TodoAction.TodoUpdated)
+  emitTodoUpdated(payload: { userId: string; todo: ResponseTodo }) {
+    this.server.to(payload.userId).emit(TodoAction.TodoUpdated, payload.todo);
+  }
+
+  @OnEvent(TodoAction.TodoRemoved)
+  emitTodoRemoved(payload: { userId: string; todo: ResponseTodo }) {
+    this.server.to(payload.userId).emit(TodoAction.TodoRemoved, payload.todo);
   }
 }

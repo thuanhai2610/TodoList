@@ -69,6 +69,7 @@ export class TodoService {
     userId: string,
     page = 1,
     limit = 10,
+    q?: string,
   ): Promise<{
     data: ResponseTodo[];
     pagination: {
@@ -80,53 +81,37 @@ export class TodoService {
   }> {
     const startIndex = (page - 1) * limit;
     const endIndex = page * limit;
-    const todos = await this.redis.hgetall(`${this.key}:${userId}`);
-    if (Object.keys(todos).length === 0) {
-      const [todos, total] = await this.todoRepository.findAndCount({
+    const todosCache = await this.redis.hgetall(`${this.key}:${userId}`);
+    let redisCache: ResponseTodo[] = [];
+    if (Object.keys(todosCache).length === 0) {
+      const [todoDatabase] = await this.todoRepository.findAndCount({
         where: { user: { userId } },
         order: { createdAt: 'ASC' },
-        skip: startIndex,
-        take: limit,
       });
-      if (!todos || todos.length === 0)
-        throw new NotFoundException('No todos found');
-      await Promise.all(
-        todos.map((todo) =>
-          this.redis.hset(
-            `${this.key}:${userId}`,
-            todo.todoId.toString(),
-            JSON.stringify(todo),
-          ),
-        ),
+      await this.setRedis(todoDatabase, userId);
+      redisCache = todoDatabase;
+    } else {
+      redisCache = Object.values(todosCache).map(
+        (todo) => JSON.parse(todo) as ResponseTodo,
       );
-      await this.redis.expire(`${this.key}:${userId}`, TTL);
-      return {
-        data: todos as ResponseTodo[],
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
     }
-
-    const parse = Object.values(todos).map(
-      (t) => JSON.parse(t) as ResponseTodo,
-    );
-    const sorted = parse.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-    const paginated = sorted.slice(startIndex, endIndex);
-
+    if (q) {
+      const queryCache = q.toLowerCase();
+      redisCache = redisCache.filter(
+        (t) =>
+          t.title.toLowerCase().includes(queryCache) ||
+          t.content.toLowerCase().includes(queryCache),
+      );
+      if (!redisCache) throw new NotFoundException('Not found todo');
+    }
+    const paginateTodoCache = redisCache.slice(startIndex, endIndex);
     return {
-      data: paginated,
+      data: paginateTodoCache,
       pagination: {
-        total: parse.length,
+        total: redisCache.length,
         page,
         limit,
-        totalPages: Math.ceil(parse.length / limit),
+        totalPages: Math.ceil(redisCache.length / limit),
       },
     };
   }
@@ -179,9 +164,15 @@ export class TodoService {
       content: updated.content,
       updatedAt: updated.updatedAt,
     };
-    await this.redis.hset(key, id, JSON.stringify(cacheData));
-    await this.redis.expire(key, TTL);
-
+    await this.redis
+      .multi()
+      .hset(key, id, JSON.stringify(cacheData))
+      .expire(key, TTL)
+      .exec();
+    this.eventEmitter.emit(TodoAction.TodoUpdated, {
+      userId,
+      todo: updated,
+    });
     return updated;
   }
 
@@ -196,6 +187,11 @@ export class TodoService {
     if (!removeTodoRepo)
       throw new NotFoundException('Not found todo to remove');
     await this.todoRepository.remove(removeTodoRepo);
+    this.eventEmitter.emit(TodoAction.TodoRemoved, {
+      userId,
+      todo: { todoId: id },
+    });
+
     return {
       message: `Todo ${id} is remove`,
     };
@@ -218,5 +214,16 @@ export class TodoService {
     time.setHours(time.getHours() + hour);
     time.setMinutes(time.getMinutes() + min);
     return time.toISOString();
+  }
+
+  private async setRedis(todoDatabase: Todo[], userId: string) {
+    for (const todo of todoDatabase) {
+      await this.redis.hset(
+        `${this.key}:${userId}`,
+        todo.todoId.toString(),
+        JSON.stringify(todo),
+      );
+    }
+    await this.redis.expire(`${this.key}:${userId}`, TTL);
   }
 }
