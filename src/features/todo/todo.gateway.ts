@@ -1,62 +1,119 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
-  ConnectedSocket,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
   WebSocketGateway,
   WebSocketServer,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
 import { PayloadRFToken } from 'src/auth/interface/login.interface';
-import { TodoAction } from './WSEvent';
-import { OnEvent } from '@nestjs/event-emitter';
+import { Server, WebSocket } from 'ws';
 import { ResponseTodo } from './interface/todo.interface';
+import { IncomingMessage } from 'http';
+import { randomUUID } from 'crypto';
 
-@WebSocketGateway(3001, { cors: { origin: '*' } })
-export class TodoGateWay implements OnGatewayConnection, OnGatewayDisconnect {
+interface AuthWebSocket extends WebSocket {
+  id: string;
+  userId?: string;
+}
+
+@WebSocketGateway(3001)
+export class TodoGateWay
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer()
   server: Server;
 
-  private client = new Map<string, string>();
-
+  private readonly logger = new Logger(TodoGateWay.name);
   constructor(private readonly jwtService: JwtService) {}
-  async handleConnection(@ConnectedSocket() client: Socket) {
+
+  // Map clientId -> socket
+  private clients = new Map<string, AuthWebSocket>();
+  // Map userId -> Set<clientId>
+  private userClients = new Map<string, Set<string>>();
+
+  afterInit(server: Server) {
+    this.server = server;
+    this.logger.log('WebSocket Server initialized on ws://localhost:3001');
+  }
+
+  handleConnection(client: AuthWebSocket, ...args: any[]) {
+    const req = args[0] as IncomingMessage | undefined;
+
+    const generatedId = randomUUID();
+    client.id = generatedId;
+
     try {
-      const token = client.handshake.query?.token as string;
-      if (!token) throw new UnauthorizedException('Token is missing!');
+      const url = req?.url ?? '';
+      const urlParams = new URLSearchParams(url.split('?')[1] || '');
+      const token =
+        urlParams.get('token') ||
+        req?.headers?.authorization?.toString().split(' ')[1];
+
+      if (!token) {
+        throw new UnauthorizedException('Token is missing!');
+      }
       const payload: PayloadRFToken = this.jwtService.verify(token, {
         secret: process.env.JWT_ACCESS_TOKEN,
       });
       const userId = payload.userId;
-      if (!userId) throw new UnauthorizedException('Invalid Token');
-      this.client.set(client.id, userId);
-      await client.join(String(userId));
+      client.userId = userId;
+      this.clients.set(client.id, client);
+      const set = this.userClients.get(userId) ?? new Set<string>();
+      set.add(client.id);
+      this.userClients.set(userId, set);
+      this.logger.log(
+        `Authenticated client ${client.id} for user ${userId}. Connections for user: ${set.size}`,
+      );
     } catch (error) {
-      console.error('WS Auth failed', error);
-      client.disconnect();
+      const msg = this.getErrorMesssage(error);
+      this.logger.warn(`Connection rejected: ${msg}`);
+      try {
+        client.send(JSON.stringify({ event: 'error', data: { message: msg } }));
+      } catch {}
+      client.close(1008, 'Unauthorized');
     }
   }
 
-  handleDisconnect(@ConnectedSocket() client: Socket) {
-    const userId = this.client.get(client.id);
-    if (userId) {
-      this.client.delete(client.id);
+  handleDisconnect(client: AuthWebSocket) {
+    if (client && client.id) {
+      this.clients.delete(client.id);
+    }
+    if (client?.userId) {
+      const set = this.userClients.get(client.userId);
+      if (set) {
+        set.delete(client.id);
+        if (set.size === 0) this.userClients.delete(client.userId);
+        else this.userClients.set(client.userId, set);
+      }
+      this.logger.log(
+        `User ${client.userId} disconnected, clientId=${client.id}`,
+      );
+    } else {
+      this.logger.log(`Unknown client disconnected, clientId=${client?.id}`);
     }
   }
-  @OnEvent(TodoAction.TodoCreated)
-  emitTodoCreated(payload: { userId: string; todo: ResponseTodo }) {
-    console.log(payload.userId, payload.todo);
-    this.server.to(payload.userId).emit(TodoAction.TodoCreated, payload.todo);
-  }
 
-  @OnEvent(TodoAction.TodoUpdated)
-  emitTodoUpdated(payload: { userId: string; todo: ResponseTodo }) {
-    this.server.to(payload.userId).emit(TodoAction.TodoUpdated, payload.todo);
+  broadcast(event: string, data: ResponseTodo) {
+    if (!this.server) {
+      this.logger.warn('WebSocket server not initialized yet.');
+      return;
+    }
+    const message = JSON.stringify({ event, data });
+    this.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(message);
+        } catch (err) {
+          this.logger.warn(`Failed to send to client ${client.id}`, err);
+        }
+      }
+    });
   }
-
-  @OnEvent(TodoAction.TodoRemoved)
-  emitTodoRemoved(payload: { userId: string; todo: ResponseTodo }) {
-    this.server.to(payload.userId).emit(TodoAction.TodoRemoved, payload.todo);
+  private getErrorMesssage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    return 'An unknown error occured';
   }
 }

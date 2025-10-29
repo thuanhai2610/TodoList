@@ -145,7 +145,6 @@ export class AuthService {
     const user = await this.userRepository.findOneBy({
       userId: payload.userId,
     });
-    console.log(payload, payload.userId, user);
     if (!user) {
       throw new NotFoundException('User is not found');
     }

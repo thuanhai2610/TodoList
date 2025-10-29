@@ -21,9 +21,9 @@ import { RequestUser } from './interface/todo.interface';
 export class TodoController {
   constructor(private readonly todoService: TodoService) {}
   @Post()
-  createTodo(@Body() dto: CreateTodoDTO, @Req() req: RequestUser) {
+  async createTodo(@Body() dto: CreateTodoDTO, @Req() req: RequestUser) {
     const { userId } = req.user;
-    return this.todoService.create(dto, userId);
+    return await this.todoService.create(dto, userId);
   }
 
   @Get()

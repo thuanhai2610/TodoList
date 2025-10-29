@@ -21,7 +21,7 @@ const TTL = 60;
 export class TodoService {
   private readonly key = 'todos';
   constructor(
-    private readonly todoGateWay: TodoGateWay,
+    @Inject(TodoGateWay) private readonly todoGateWay: TodoGateWay,
     private eventEmitter: EventEmitter2,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     @InjectRepository(Todo) private todoRepository: Repository<Todo>,
@@ -57,11 +57,9 @@ export class TodoService {
       JSON.stringify(safeTodo),
     );
     await this.redis.expire(`${this.key}:${userId}`, TTL);
-    const userIdString = userId.toString();
-    this.eventEmitter.emit(TodoAction.TodoCreated, {
-      userId: userIdString,
-      todo: safeTodo,
-    });
+    console.log(JSON.stringify(safeTodo));
+    this.todoGateWay.broadcast(TodoAction.TodoCreated, safeTodo);
+
     return safeTodo;
   }
 
@@ -149,7 +147,7 @@ export class TodoService {
 
     if (!findEntity) throw new NotFoundException('Todo not found!');
     Object.assign(findEntity, dto, {
-      duration: updateDuration ?? findEntity,
+      duration: updateDuration ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
@@ -169,10 +167,8 @@ export class TodoService {
       .hset(key, id, JSON.stringify(cacheData))
       .expire(key, TTL)
       .exec();
-    this.eventEmitter.emit(TodoAction.TodoUpdated, {
-      userId,
-      todo: updated,
-    });
+    this.todoGateWay.broadcast(TodoAction.TodoUpdated, updated);
+
     return updated;
   }
 
@@ -187,11 +183,9 @@ export class TodoService {
     if (!removeTodoRepo)
       throw new NotFoundException('Not found todo to remove');
     await this.todoRepository.remove(removeTodoRepo);
-    this.eventEmitter.emit(TodoAction.TodoRemoved, {
-      userId,
-      todo: { todoId: id },
-    });
-
+    this.todoGateWay.broadcast(TodoAction.TodoRemoved, {
+      todoId: id,
+    } as ResponseTodo);
     return {
       message: `Todo ${id} is remove`,
     };

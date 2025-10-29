@@ -101,14 +101,16 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
 - AUTH: REGISTER (BODY) , LOGIN ( BODY ), REFRESHTOKEN ( không cần vì đã set cookies),
   => Copy accessToken
-  |
-  v
+
 - Trong các REQUEST của TODO : phải auth < Bearer >,
   => Khi user REQUEST các API: Post to do ( Body ), Put to do ( Body ), Delete to do (id của todo) => kèm auth (Bearer = token của WS)
-- TEST WS : Tạo 1 SOCKET.io Connect với http://localhost:3001?token= ... ( lưu ý token phải = accessToken)
-  ====> Lắng nghe các event : TodoCreated, TodoUpdated, TodoRemove,
-  thì Bên WS sẽ nghe các emit của api đã REQUEST là received.
 
 - ==== TEST DOCKER =====
   Các env đã set trong .env
   Khi chạy sài : docker compose up -d --build
+
+  ======= TEST WS =====
+
+  ==> Copy file test-ws.js (trong file test/test-ws.js)  Lưu với đuôi html và mở ra. 
+   Để 2 tab và đăng nhập. 
+   Test các chức năng sẽ thấy real-time .....

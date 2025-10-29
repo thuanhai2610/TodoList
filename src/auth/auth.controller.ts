@@ -28,7 +28,6 @@ export class AuthController {
   @Post('refreshToken')
   async refreshToken(@Req() req: Request) {
     const refreshToken = req.cookies['refreshToken'] as string;
-    console.log(refreshToken);
     if (!refreshToken)
       throw new UnauthorizedException('RefreshToken is missing');
     const result = await this.authService.refreshToken(refreshToken);
