@@ -111,6 +111,6 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
   ======= TEST WS =====
 
-  ==> Copy file test-ws.js (trong file test/test-ws.js)  Lưu với đuôi html và mở ra. 
-   Để 2 tab và đăng nhập. 
-   Test các chức năng sẽ thấy real-time .....
+  ==> Copy file test-ws.js (trong file test/test-ws.js) Lưu với đuôi html và mở ra.
+  Để 2 tab và đăng nhập.
+  Test các chức năng sẽ thấy real-time .....
