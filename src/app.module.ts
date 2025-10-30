@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
+import { RateLimitGuard } from './guard/rate-limit.guard';
 
 @Module({
   imports: [
@@ -32,6 +33,6 @@ import { join } from 'path';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, RateLimitGuard],
 })
 export class AppModule {}

@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { MaxLength } from 'class-validator';
 
 @Entity()
 export class Todo {
@@ -16,9 +17,11 @@ export class Todo {
   todoId: string;
 
   @Column()
+  @MaxLength(155, { message: 'Title must be at most 255 characters long' })
   title: string;
 
   @Column()
+  @MaxLength(255, { message: 'Content must be at most 255 characters long' })
   content: string;
 
   @Column({

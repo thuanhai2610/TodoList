@@ -69,8 +69,8 @@ export class TodoService {
       totalPages: number;
     };
   }> {
-    const startIndex = (page - 1) * limit;
-    const key = `${this.key}:${userId}:${page}:${limit}${q ? `:=${q}` : ''}`;
+    const { pageNum, limitNum, skip, take } = this.getPagination(page, limit);
+    const key = `${this.key}:${userId}:${pageNum}:${limitNum}${q ? `:=${q}` : ''}`;
     const todosCache = await this.redis.get(key);
     if (todosCache)
       return JSON.parse(todosCache) as {
@@ -91,16 +91,16 @@ export class TodoService {
     const [todoDb, total] = await this.todoRepository.findAndCount({
       where: whereCondition,
       order: { createdAt: 'ASC' },
-      skip: startIndex,
-      take: limit,
+      skip,
+      take,
     });
     const result = {
       data: todoDb as ResponseTodo[],
       pagination: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
       },
     };
     await this.redis.set(key, JSON.stringify(result), 'EX', TTL);
@@ -197,5 +197,21 @@ export class TodoService {
     time.setHours(time.getHours() + hour);
     time.setMinutes(time.getMinutes() + min);
     return time.toISOString();
+  }
+
+  toNumber(value: number, fallback: number): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  getPagination(
+    page: number = 1,
+    limit: number = 1,
+  ): { pageNum: number; limitNum: number; skip: number; take: number } {
+    const pageNum = Math.max(1, this.toNumber(page, 1));
+    const limitNum = Math.max(100, Math.min(100, this.toNumber(limit, 10)));
+    const skip = (pageNum - 1) * limitNum;
+    const take = limitNum;
+    return { pageNum, limitNum, skip, take };
   }
 }

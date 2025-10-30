@@ -6,6 +6,7 @@ import * as cookieParser from 'cookie-parser';
 import { ResponseInterceptor } from './interceptor/response.interceptor';
 import { HandleException } from './interceptor/exception-filter';
 import { WsAdapter } from '@nestjs/platform-ws';
+import { RateLimitGuard } from './guard/rate-limit.guard';
 async function bootstrap() {
   const PORT = process.env.PORT || 3000;
 
@@ -20,6 +21,7 @@ async function bootstrap() {
       return { event: t, data: d };
     },
   });
+  app.useGlobalGuards(app.get(RateLimitGuard));
   app.useWebSocketAdapter(wsAdapter);
   app.setGlobalPrefix('api/v1');
   app.enableCors({
