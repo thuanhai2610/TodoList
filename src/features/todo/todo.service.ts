@@ -16,6 +16,7 @@ import { ResponseTodo } from './interface/todo.interface';
 import { TodoGateWay } from '../gateway/todo.gateway';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TodoAction } from './WSEvent';
+import { getPagination } from 'src/services/paginate.service';
 const TTL = 60;
 @Injectable()
 export class TodoService {
@@ -69,19 +70,7 @@ export class TodoService {
       totalPages: number;
     };
   }> {
-    const { pageNum, limitNum, skip, take } = this.getPagination(page, limit);
-    const key = `${this.key}:${userId}:${pageNum}:${limitNum}${q ? `:=${q}` : ''}`;
-    const todosCache = await this.redis.get(key);
-    if (todosCache)
-      return JSON.parse(todosCache) as {
-        data: [ResponseTodo];
-        pagination: {
-          total: number;
-          page: number;
-          limit: number;
-          totalPages: number;
-        };
-      };
+    const { pageNum, limitNum, skip, take } = getPagination(page, limit);
     const whereCondition = q
       ? [
           { user: { userId }, title: ILike(`%${q}%`) },
@@ -103,7 +92,6 @@ export class TodoService {
         totalPages: Math.ceil(total / limitNum),
       },
     };
-    await this.redis.set(key, JSON.stringify(result), 'EX', TTL);
     return result;
   }
 
@@ -199,19 +187,19 @@ export class TodoService {
     return time.toISOString();
   }
 
-  toNumber(value: number, fallback: number): number {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : fallback;
-  }
+  // toNumber(value: number, fallback: number): number {
+  //   const n = Number(value);
+  //   return Number.isFinite(n) ? n : fallback;
+  // }
 
-  getPagination(
-    page: number = 1,
-    limit: number = 1,
-  ): { pageNum: number; limitNum: number; skip: number; take: number } {
-    const pageNum = Math.max(1, this.toNumber(page, 1));
-    const limitNum = Math.max(100, Math.min(100, this.toNumber(limit, 10)));
-    const skip = (pageNum - 1) * limitNum;
-    const take = limitNum;
-    return { pageNum, limitNum, skip, take };
-  }
+  // getPagination(
+  //   page: number = 1,
+  //   limit: number = 1,
+  // ): { pageNum: number; limitNum: number; skip: number; take: number } {
+  //   const pageNum = Math.max(1, this.toNumber(page, 1));
+  //   const limitNum = Math.max(100, Math.min(100, this.toNumber(limit, 10)));
+  //   const skip = (pageNum - 1) * limitNum;
+  //   const take = limitNum;
+  //   return { pageNum, limitNum, skip, take };
+  // }
 }

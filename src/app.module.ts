@@ -7,8 +7,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
-import { RateLimitGuard } from './guard/rate-limit.guard';
-
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { RATE_LIMIT_CONFIG } from './rate-limit/rate-limit';
+import { APP_GUARD } from '@nestjs/core';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -28,11 +30,29 @@ import { RateLimitGuard } from './guard/rate-limit.guard';
         synchronize: true,
       }),
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: RATE_LIMIT_CONFIG.TTL,
+          limit: RATE_LIMIT_CONFIG.LIMIT,
+          blockDuration: RATE_LIMIT_CONFIG.BLOCK_DURATION,
+        },
+      ],
+      storage: new ThrottlerStorageRedisService(
+        new ConfigService().get('REDIS_URL_CONNECT'),
+      ),
+    }),
     TodoModule,
     RedisModule,
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RateLimitGuard],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
