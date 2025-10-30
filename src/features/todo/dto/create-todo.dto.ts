@@ -3,8 +3,6 @@ import { PriorityEnum } from '../enum/priority.enum';
 import { StatusTodo } from '../enum/status-todo.enum';
 
 export class CreateTodoDTO {
-  @IsOptional()
-  todoId: string;
   @IsString()
   @IsNotEmpty()
   title: string;

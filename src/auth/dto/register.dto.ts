@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, Matches } from 'class-validator';
+import { IsNotEmpty, Matches } from 'class-validator';
 
 export class RegisterDTO {
   @IsNotEmpty({ message: 'Email không được để trống' })
@@ -15,7 +15,4 @@ export class RegisterDTO {
 
   @IsNotEmpty({ message: 'Tên không được để trống' })
   name: string;
-
-  @IsOptional()
-  isVerify: boolean;
 }

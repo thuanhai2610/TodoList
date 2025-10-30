@@ -14,13 +14,8 @@ import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entity/user.entity';
 import { Repository } from 'typeorm';
-import {
-  PayloadRFToken,
-  ResponseUser,
-  UserEntity,
-} from './interface/login.interface';
+import { PayloadRFToken, ResponseUser } from './interface/login.interface';
 
-const TTL = 60;
 @Injectable()
 export class AuthService {
   private key = 'users';
@@ -46,46 +41,32 @@ export class AuthService {
     };
     const newUser = this.userRepository.create(user);
     const createUser = await this.userRepository.save(newUser);
-    await this.redis
-      .multi()
-      .hset(this.key, createUser.email, JSON.stringify(createUser))
-      .expire(this.key, TTL)
-      .exec();
     const { password: _, ...safeUser } = createUser;
     return safeUser;
   }
 
   async login(dto: LoginDTO, res: Response) {
     const { email, password } = dto;
-    const data = await this.redis.hget(this.key, email);
-    let userData: UserEntity;
-    if (data) {
-      userData = JSON.parse(data) as UserEntity;
-    } else {
-      const userDB = await this.userRepository.findOneBy({ email });
-      if (!userDB) {
-        throw new NotFoundException('Email or Password not correct!');
-      }
-      userData = userDB as UserEntity;
+    const key = `${this.key}:isBlocked:${email}`;
+    const blockToken = await this.redis.get(key);
+    if (blockToken)
+      throw new UnauthorizedException('Token is block. Wait a few minute!');
+    const userDB = await this.userRepository.findOneBy({ email });
+    if (userDB && userDB.isBlock) {
+      throw new UnauthorizedException('User is block by Admin!');
     }
-    const isMatch = await bcrypt.compare(password, userData.password);
-    if (!isMatch) throw new NotFoundException('Email or Password not correct!');
+    if (!userDB) throw new NotFoundException('Email is not correct');
+    const isMatch = await bcrypt.compare(password, userDB.password);
+    if (!isMatch) throw new NotFoundException('Password not correct!');
     const payload = {
-      userId: userData.userId,
-      email: userData.email,
-      name: userData.name,
+      userId: userDB.userId,
+      email: userDB.email,
+      name: userDB.name,
     };
 
     const accessToken = this.generateAccessToken(payload);
     await this.generateRefreshToken(payload, res);
-    const { password: _, ...safeUser } = userData;
-
-    await this.redis
-      .multi()
-      .hset(this.key, email, JSON.stringify(userData))
-      .expire(this.key, TTL)
-      .exec();
-
+    const { password: _, isVerify: __, isBlock: ___, ...safeUser } = userDB;
     return {
       accessToken,
       data: safeUser as ResponseUser,
@@ -154,10 +135,36 @@ export class AuthService {
       name: user.name,
     };
     const accessToken = this.generateAccessToken(newPayload);
-    const { password: _, ...safeUser } = user;
+    const { password: _, isVerify: __, isBlock: ___, ...safeUser } = user;
     return {
       accessToken: accessToken,
       data: safeUser,
+    };
+  }
+
+  async logout(accessToken: string) {
+    try {
+      const payload: PayloadRFToken = await this.jwtService.verify(
+        accessToken,
+        {
+          secret: process.env.JWT_ACCESS_TOKEN,
+        },
+      );
+      const key = `${this.key}:isBlocked:${payload.email}`;
+      if (await this.redis.get(key)) {
+        const blockUser = await this.userRepository.update(payload.email, {
+          isBlock: true,
+        });
+        if (blockUser) throw new UnauthorizedException('You is dissing');
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const ttl = Math.max(0, payload.exp - now);
+      await this.redis.set(key, accessToken.toString(), 'EX', ttl);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid token', error);
+    }
+    return {
+      message: `You is logut and blocked login. Wait 15 minutes`,
     };
   }
 }

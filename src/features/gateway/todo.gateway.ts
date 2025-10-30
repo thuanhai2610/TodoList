@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { PayloadRFToken } from 'src/auth/interface/login.interface';
 import { Server, WebSocket } from 'ws';
-import { ResponseTodo } from './interface/todo.interface';
+import { ResponseTodo } from '../todo/interface/todo.interface';
 import { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
 
@@ -18,7 +18,7 @@ interface AuthWebSocket extends WebSocket {
   userId?: string;
 }
 
-@WebSocketGateway(3001)
+@WebSocketGateway(3001, { path: '/ws' })
 export class TodoGateWay
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
@@ -70,7 +70,7 @@ export class TodoGateWay
       const msg = this.getErrorMesssage(error);
       this.logger.warn(`Connection rejected: ${msg}`);
       try {
-        client.send(JSON.stringify({ event: 'error', data: { message: msg } }));
+        client.send(JSON.stringify({ t: 'error', d: { message: msg } }));
       } catch {}
       client.close(1008, 'Unauthorized');
     }
@@ -95,12 +95,28 @@ export class TodoGateWay
     }
   }
 
-  broadcast(event: string, data: ResponseTodo) {
+  broadcast(t: string, d: ResponseTodo) {
     if (!this.server) {
       this.logger.warn('WebSocket server not initialized yet.');
       return;
     }
-    const message = JSON.stringify({ event, data });
+
+    const message = JSON.stringify({ t, d });
+    if (Buffer.byteLength(message, 'utf8') > 1024) {
+      this.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          try {
+            client.send(JSON.stringify({ error: 'Message too large' }));
+          } catch (error) {
+            this.logger.warn(
+              `Failed to send error to client ${client.id}`,
+              error,
+            );
+          }
+        }
+      });
+      return;
+    }
     this.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         try {

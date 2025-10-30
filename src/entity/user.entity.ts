@@ -18,6 +18,9 @@ export class User {
   @Column({ default: true })
   isVerify: boolean;
 
+  @Column({ default: false })
+  isBlock: boolean;
+
   @OneToMany(() => Todo, (todo) => todo.user)
   todos: Todo[];
 }

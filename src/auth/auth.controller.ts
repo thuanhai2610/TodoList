@@ -26,11 +26,20 @@ export class AuthController {
   }
 
   @Post('refreshToken')
-  async refreshToken(@Req() req: Request) {
+  refreshToken(@Req() req: Request) {
     const refreshToken = req.cookies['refreshToken'] as string;
     if (!refreshToken)
       throw new UnauthorizedException('RefreshToken is missing');
-    const result = await this.authService.refreshToken(refreshToken);
-    return result;
+    return this.authService.refreshToken(refreshToken);
+  }
+
+  @Post('logout')
+  logout(@Req() req: Request) {
+    const authHeader = req.headers['authorization'] as string;
+    if (!authHeader || !authHeader.startsWith('Bearer '))
+      throw new UnauthorizedException('Access token is missing or invalid');
+    const accessToken = authHeader.split(' ')[1];
+    console.log(accessToken);
+    return this.authService.logout(accessToken);
   }
 }

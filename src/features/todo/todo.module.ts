@@ -7,9 +7,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Todo } from 'src/entity/todo.entity';
 import { User } from 'src/entity/user.entity';
 import { JwtModuleConfig } from 'src/guard/jwt.module';
-import { TodoGateWay } from './todo.gateway';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { GateWayModule } from '../gateway/gateway.module';
 
 @Module({
   imports: [
@@ -17,9 +17,10 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     JwtModuleConfig,
     TypeOrmModule.forFeature([Todo, User]),
     EventEmitterModule.forRoot(),
+    GateWayModule,
   ],
   controllers: [TodoController],
-  providers: [TodoService, AuthGuard, JwtService, TodoGateWay],
-  exports: [TodoGateWay],
+  providers: [TodoService, AuthGuard, JwtService],
+  exports: [],
 })
 export class TodoModule {}

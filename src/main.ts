@@ -14,7 +14,13 @@ async function bootstrap() {
   app.use(cookieParser());
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new HandleException());
-  app.useWebSocketAdapter(new WsAdapter(app));
+  const wsAdapter = new WsAdapter(app, {
+    messageParser: (message: string) => {
+      const { t, d } = JSON.parse(message.toString());
+      return { event: t, data: d };
+    },
+  });
+  app.useWebSocketAdapter(wsAdapter);
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: '*',
@@ -29,7 +35,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '100kb' }));
+  app.use(express.urlencoded({ limit: '100kb', extended: true }));
   await app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`);
   });

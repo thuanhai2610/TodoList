@@ -10,10 +10,10 @@ import { PriorityEnum } from './enum/priority.enum';
 import { StatusTodo } from './enum/status-todo.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Todo } from 'src/entity/todo.entity';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { User } from 'src/entity/user.entity';
 import { ResponseTodo } from './interface/todo.interface';
-import { TodoGateWay } from './todo.gateway';
+import { TodoGateWay } from '../gateway/todo.gateway';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TodoAction } from './WSEvent';
 const TTL = 60;
@@ -51,15 +51,7 @@ export class TodoService {
       ...todoData,
       user: safeUser,
     };
-    await this.redis.hset(
-      `${this.key}:${userId}`,
-      saveRepo.todoId,
-      JSON.stringify(safeTodo),
-    );
-    await this.redis.expire(`${this.key}:${userId}`, TTL);
-    console.log(JSON.stringify(safeTodo));
     this.todoGateWay.broadcast(TodoAction.TodoCreated, safeTodo);
-
     return safeTodo;
   }
 
@@ -78,44 +70,45 @@ export class TodoService {
     };
   }> {
     const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const todosCache = await this.redis.hgetall(`${this.key}:${userId}`);
-    let redisCache: ResponseTodo[] = [];
-    if (Object.keys(todosCache).length === 0) {
-      const [todoDatabase] = await this.todoRepository.findAndCount({
-        where: { user: { userId } },
-        order: { createdAt: 'ASC' },
-      });
-      await this.setRedis(todoDatabase, userId);
-      redisCache = todoDatabase;
-    } else {
-      redisCache = Object.values(todosCache).map(
-        (todo) => JSON.parse(todo) as ResponseTodo,
-      );
-    }
-    if (q) {
-      const queryCache = q.toLowerCase();
-      redisCache = redisCache.filter(
-        (t) =>
-          t.title.toLowerCase().includes(queryCache) ||
-          t.content.toLowerCase().includes(queryCache),
-      );
-      if (!redisCache) throw new NotFoundException('Not found todo');
-    }
-    const paginateTodoCache = redisCache.slice(startIndex, endIndex);
-    return {
-      data: paginateTodoCache,
+    const key = `${this.key}:${userId}:${page}:${limit}${q ? `:=${q}` : ''}`;
+    const todosCache = await this.redis.get(key);
+    if (todosCache)
+      return JSON.parse(todosCache) as {
+        data: [ResponseTodo];
+        pagination: {
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        };
+      };
+    const whereCondition = q
+      ? [
+          { user: { userId }, title: ILike(`%${q}%`) },
+          { user: { userId }, content: ILike(`%${q}%`) },
+        ]
+      : { user: { userId } };
+    const [todoDb, total] = await this.todoRepository.findAndCount({
+      where: whereCondition,
+      order: { createdAt: 'ASC' },
+      skip: startIndex,
+      take: limit,
+    });
+    const result = {
+      data: todoDb as ResponseTodo[],
       pagination: {
-        total: redisCache.length,
+        total,
         page,
         limit,
-        totalPages: Math.ceil(redisCache.length / limit),
+        totalPages: Math.ceil(total / limit),
       },
     };
+    await this.redis.set(key, JSON.stringify(result), 'EX', TTL);
+    return result;
   }
 
   async findOne(userId: string, id: string) {
-    const todos = await this.redis.hget(`${this.key}:${userId}`, id);
+    const todos = await this.redis.get(`${this.key}:${userId}:${id}`);
     if (todos) return JSON.parse(todos) as ResponseTodo;
     const todoRepo = await this.todoRepository.findOne({
       where: {
@@ -124,12 +117,12 @@ export class TodoService {
       },
     });
     if (todoRepo) {
-      await this.redis.hset(
-        `${this.key}:${userId}`,
-        id,
+      await this.redis.set(
+        `${this.key}:${userId}:${id}`,
         JSON.stringify(todoRepo),
+        'EX',
+        TTL,
       );
-      await this.redis.expire(this.key, TTL);
       return todoRepo;
     } else {
       return {
@@ -139,7 +132,7 @@ export class TodoService {
   }
 
   async update(id: string, dto: Partial<CreateTodoDTO>, userId: string) {
-    const key = `${this.key}:${userId}`;
+    const key = `${this.key}:${userId}:${id}`;
     const updateDuration = this.getDuration(dto.duration);
     const findEntity = await this.todoRepository.findOne({
       where: { todoId: id, user: { userId } },
@@ -162,18 +155,14 @@ export class TodoService {
       content: updated.content,
       updatedAt: updated.updatedAt,
     };
-    await this.redis
-      .multi()
-      .hset(key, id, JSON.stringify(cacheData))
-      .expire(key, TTL)
-      .exec();
+    await this.redis.set(key, JSON.stringify(cacheData), 'EX', TTL);
     this.todoGateWay.broadcast(TodoAction.TodoUpdated, updated);
 
     return updated;
   }
 
   async remove(id: string, userId: string) {
-    await this.redis.hdel(`${this.key}:${userId}`, id);
+    await this.redis.del(`${this.key}:${userId}:${id}`);
     const removeTodoRepo = await this.todoRepository.findOne({
       where: {
         todoId: id,
@@ -208,16 +197,5 @@ export class TodoService {
     time.setHours(time.getHours() + hour);
     time.setMinutes(time.getMinutes() + min);
     return time.toISOString();
-  }
-
-  private async setRedis(todoDatabase: Todo[], userId: string) {
-    for (const todo of todoDatabase) {
-      await this.redis.hset(
-        `${this.key}:${userId}`,
-        todo.todoId.toString(),
-        JSON.stringify(todo),
-      );
-    }
-    await this.redis.expire(`${this.key}:${userId}`, TTL);
   }
 }
