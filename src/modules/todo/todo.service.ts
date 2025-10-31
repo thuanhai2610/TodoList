@@ -58,17 +58,7 @@ export class TodoService {
   }
 
   async createFollowQueue(dto: CreateTodoDTO, userId: string) {
-    const data = {
-      title: dto.title,
-      content: dto.content,
-      duration: this.getDuration(dto.duration),
-      creadtedAt: new Date().toISOString(),
-      upadatedAt: new Date().toISOString(),
-      status: dto.status,
-      priority: dto.priority,
-    };
     await this.todoQueue.createdTodoQueue(dto, userId);
-    return data;
   }
   async findAll(
     userId: string,
