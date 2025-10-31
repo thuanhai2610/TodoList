@@ -5,8 +5,7 @@ import {
 } from 'src/rate-limit/rateLimit.req-interface';
 
 export function getHttpIp(req: ReqHttpRateLimit): string {
-  const cfIp =
-    req.headers?.['cf-connecting-ip'] || req.headers?.['CF-Connecting-IP'];
+  const cfIp = req.headers?.['cf-connecting-ip'];
   if (cfIp && typeof cfIp === 'string') {
     return cfIp;
   }
@@ -21,9 +20,7 @@ export function getHttpIp(req: ReqHttpRateLimit): string {
 export function getWsIp(client: WsClientRateLimit): string {
   const handshakeHeaders = client.handshake?.headers;
   if (handshakeHeaders) {
-    const cfIp =
-      handshakeHeaders['cf-connecting-ip'] ||
-      handshakeHeaders['CF-Connecting-IP'];
+    const cfIp = handshakeHeaders['cf-connecting-ip'];
     if (cfIp) {
       return cfIp;
     }

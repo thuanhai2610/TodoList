@@ -1,4 +1,9 @@
-import { Logger, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Logger,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
   WebSocketGateway,
@@ -8,6 +13,7 @@ import {
   OnGatewayInit,
   SubscribeMessage,
   MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { PayloadRFToken } from 'src/auth/interface/login.interface';
 import { Server, WebSocket } from 'ws';
@@ -58,7 +64,9 @@ export class TodoGateWay
       const token =
         urlParams.get('token') ||
         req?.headers?.authorization?.toString().split(' ')[1];
-
+      if (url.length > 1024) {
+        throw new BadRequestException('Query parame are too long');
+      }
       if (!token) {
         throw new UnauthorizedException('Token is missing!');
       }
@@ -79,7 +87,9 @@ export class TodoGateWay
       this.logger.warn(`Connection rejected: ${msg}`);
       try {
         client.send(JSON.stringify({ t: 'error', d: { message: msg } }));
-      } catch {}
+      } catch {
+        client.send(JSON.stringify({ t: 'error', d: { message: msg } }));
+      }
       client.close(1008, 'Unauthorized');
     }
   }
@@ -102,14 +112,20 @@ export class TodoGateWay
       this.logger.log(`Unknown client disconnected, clientId=${client?.id}`);
     }
   }
-  broadcast(t: string, d: ResponseTodo) {
+  async broadcast(t: string, d: ResponseTodo, sender?: AuthWebSocket) {
     if (!this.server) {
       this.logger.warn('WebSocket server not initialized yet.');
       return;
     }
 
     const message = JSON.stringify({ t, d });
-    console.log(message);
+    const valid = await this.checkByte(message);
+    if (!valid) {
+      if (sender && sender.readyState === WebSocket.OPEN) {
+        sender.send(JSON.stringify({ error: 'Message too large' }));
+      }
+      return;
+    }
     this.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         try {
@@ -122,10 +138,14 @@ export class TodoGateWay
   }
 
   @SubscribeMessage('MessageToAllClient')
-  broadCastConnect(@MessageBody() d: ResponseTodo) {
-    this.broadcast('MessageToAllClient', d);
+  async broadCastConnect(
+    @MessageBody() d: ResponseTodo,
+    @ConnectedSocket() client: AuthWebSocket,
+  ) {
+    await this.broadcast('MessageToAllClient', d, client);
 
-    // Test Ws : JSON =>  {
+    // Test Ws : JSON =>
+    // {
     //     "t": "MessageToAllClient",
     //     "d": {
     //         "d": {
@@ -198,5 +218,13 @@ export class TodoGateWay
     if (error instanceof Error) return error.message;
     if (typeof error === 'string') return error;
     return 'An unknown error occured';
+  }
+
+  private async checkByte(payload: string): Promise<boolean> {
+    if (Buffer.byteLength(payload, 'utf8') > 1024) {
+      this.logger.warn('Block message');
+      return false;
+    }
+    return true;
   }
 }

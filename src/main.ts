@@ -35,8 +35,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '100kb' }));
+  app.use(express.urlencoded({ limit: '100kb', extended: true }));
   await app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`);
   });

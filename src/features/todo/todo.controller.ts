@@ -26,6 +26,12 @@ export class TodoController {
     return await this.todoService.create(dto, userId);
   }
 
+  @Post('queue')
+  async createTodoQueue(@Body() dto: CreateTodoDTO, @Req() req: RequestUser) {
+    const { userId } = req.user;
+    return await this.todoService.createFollowQueue(dto, userId);
+  }
+
   @Get()
   findAllTodoOfUser(
     @Req() req: RequestUser,

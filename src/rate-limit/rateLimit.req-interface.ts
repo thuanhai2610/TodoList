@@ -9,14 +9,12 @@ export interface WsClientRateLimit {
   handshake?: {
     headers?: {
       'cf-connecting-ip'?: string;
-      'CF-Connecting-IP'?: string;
     };
     address?: string;
   };
   request?: {
     headers?: {
       'cf-connecting-ip'?: string;
-      'CF-Connecting-IP'?: string;
     };
   };
 }

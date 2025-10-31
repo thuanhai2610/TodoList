@@ -1,13 +1,21 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { PriorityEnum } from '../enum/priority.enum';
 import { StatusTodo } from '../enum/status-todo.enum';
 
 export class CreateTodoDTO {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(300, { message: 'Title too large, max 100 character' })
   title: string;
 
   @IsString()
+  @MaxLength(2000)
   @IsNotEmpty()
   content: string;
 
@@ -20,11 +28,5 @@ export class CreateTodoDTO {
 
   @IsEnum(StatusTodo)
   @IsOptional()
-  status: StatusTodo = StatusTodo.Pending;
-
-  @IsOptional()
-  createdAt?: string;
-
-  @IsOptional()
-  updateAt?: string;
+  status: StatusTodo;
 }

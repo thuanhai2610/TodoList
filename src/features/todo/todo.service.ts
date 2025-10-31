@@ -14,16 +14,17 @@ import { ILike, Repository } from 'typeorm';
 import { User } from 'src/entity/user.entity';
 import { ResponseTodo } from './interface/todo.interface';
 import { TodoGateWay } from '../gateway/todo.gateway';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TodoAction } from './WSEvent';
 import { getPagination } from 'src/services/paginate.service';
+import { TodoQueue } from 'src/redis/bullmq/queue/todo/todo.queue';
+
 const TTL = 60;
 @Injectable()
 export class TodoService {
   private readonly key = 'todos';
   constructor(
     @Inject(TodoGateWay) private readonly todoGateWay: TodoGateWay,
-    private eventEmitter: EventEmitter2,
+    private readonly todoQueue: TodoQueue,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     @InjectRepository(Todo) private todoRepository: Repository<Todo>,
     @InjectRepository(User) private userRepository: Repository<User>,
@@ -52,10 +53,23 @@ export class TodoService {
       ...todoData,
       user: safeUser,
     };
-    this.todoGateWay.broadcast(TodoAction.TodoCreated, safeTodo);
+    await this.todoGateWay.broadcast(TodoAction.TodoCreated, safeTodo);
     return safeTodo;
   }
 
+  async createFollowQueue(dto: CreateTodoDTO, userId: string) {
+    const data = {
+      title: dto.title,
+      content: dto.content,
+      duration: this.getDuration(dto.duration),
+      creadtedAt: new Date().toISOString(),
+      upadatedAt: new Date().toISOString(),
+      status: dto.status,
+      priority: dto.priority,
+    };
+    await this.todoQueue.createdTodoQueue(dto, userId);
+    return data;
+  }
   async findAll(
     userId: string,
     page = 1,
@@ -144,7 +158,7 @@ export class TodoService {
       updatedAt: updated.updatedAt,
     };
     await this.redis.set(key, JSON.stringify(cacheData), 'EX', TTL);
-    this.todoGateWay.broadcast(TodoAction.TodoUpdated, updated);
+    await this.todoGateWay.broadcast(TodoAction.TodoUpdated, updated);
 
     return updated;
   }
@@ -160,7 +174,7 @@ export class TodoService {
     if (!removeTodoRepo)
       throw new NotFoundException('Not found todo to remove');
     await this.todoRepository.remove(removeTodoRepo);
-    this.todoGateWay.broadcast(TodoAction.TodoRemoved, {
+    await this.todoGateWay.broadcast(TodoAction.TodoRemoved, {
       todoId: id,
     } as ResponseTodo);
     return {
@@ -168,7 +182,7 @@ export class TodoService {
     };
   }
 
-  private getDuration(input?: string): string | undefined {
+  getDuration(input?: string): string | undefined {
     const base = new Date();
     if (!input) return base.toISOString();
     const createdAt = new Date();
@@ -187,19 +201,14 @@ export class TodoService {
     return time.toISOString();
   }
 
-  // toNumber(value: number, fallback: number): number {
-  //   const n = Number(value);
-  //   return Number.isFinite(n) ? n : fallback;
-  // }
-
-  // getPagination(
-  //   page: number = 1,
-  //   limit: number = 1,
-  // ): { pageNum: number; limitNum: number; skip: number; take: number } {
-  //   const pageNum = Math.max(1, this.toNumber(page, 1));
-  //   const limitNum = Math.max(100, Math.min(100, this.toNumber(limit, 10)));
-  //   const skip = (pageNum - 1) * limitNum;
-  //   const take = limitNum;
-  //   return { pageNum, limitNum, skip, take };
-  // }
+  async deleteTods(userId: string) {
+    const allTods = await this.todoRepository.find({
+      where: { user: { userId } },
+    });
+    const sizeDelete = 10;
+    for (let i = 0; i < allTods.length; i += sizeDelete) {
+      const deletodo = allTods.slice(i, i + sizeDelete);
+      await this.todoQueue.deleteTodoQueue(deletodo, userId);
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Post,
   Req,
   Res,
@@ -36,10 +37,19 @@ export class AuthController {
   @Post('logout')
   logout(@Req() req: Request) {
     const authHeader = req.headers['authorization'] as string;
-    if (!authHeader || !authHeader.startsWith('Bearer '))
+    if (!authHeader || !authHeader.startsWith('Bearer'))
       throw new UnauthorizedException('Access token is missing or invalid');
     const accessToken = authHeader.split(' ')[1];
     console.log(accessToken);
     return this.authService.logout(accessToken);
+  }
+
+  @Delete()
+  delete(@Req() req: Request) {
+    const authHeader = req.headers['authorization'] as string;
+    if (!authHeader || !authHeader.startsWith('Bearer'))
+      throw new UnauthorizedException('Access token is missing ');
+    const accessToken = authHeader.split(' ')[1];
+    return this.authService.deleteAccout(accessToken);
   }
 }

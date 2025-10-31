@@ -11,6 +11,9 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { RATE_LIMIT_CONFIG } from './rate-limit/rate-limit';
 import { APP_GUARD } from '@nestjs/core';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { BullMQModule } from './redis/bullmq/bullmq.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,7 +30,7 @@ import { APP_GUARD } from '@nestjs/core';
         password: configService.get<string>('DB_PASS', 'password'),
         database: configService.get<string>('DB_NAME', 'TodoList'),
         entities: [join(__dirname, '/**/*.entity{.ts,.js}')],
-        synchronize: true,
+        synchronize: false,
       }),
     }),
     ThrottlerModule.forRoot({
@@ -42,6 +45,20 @@ import { APP_GUARD } from '@nestjs/core';
         new ConfigService().get('REDIS_URL_CONNECT'),
       ),
     }),
+    MailerModule.forRoot({
+      transport: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+      },
+      defaults: {
+        from: '"No reply" <thuanhai@localhost.com>',
+      },
+    }),
+    BullMQModule,
     TodoModule,
     RedisModule,
     AuthModule,
