@@ -9,8 +9,8 @@ import { TodoServiceQueue } from './queue/todo/todo-service.queue';
 import { TodoQueueProcessor } from './queue/todo/processor-todos.queue';
 import { TodoQueue } from './queue/todo/todo.queue';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Todo } from 'src/entity/todo.entity';
-import { User } from 'src/entity/user.entity';
+import { Todo } from 'src/modules/todo/entity/todo.entity';
+import { User } from 'src/modules/auth/entity/user.entity';
 
 interface RedisConfig {
   host: string;

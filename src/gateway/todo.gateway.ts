@@ -15,12 +15,12 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { PayloadRFToken } from 'src/auth/interface/login.interface';
+import { PayloadRFToken } from 'src/modules/auth/interface/login.interface';
 import { Server, WebSocket } from 'ws';
-import { ResponseTodo } from '../todo/interface/todo.interface';
 import { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
-import { IpThrottlerGuard } from 'src/guard/ip-throttler.guard';
+import { IpThrottlerGuard } from 'src/common/guard/ip-throttler.guard';
+import { ResponseTodo } from 'src/modules/todo/interface/todo.interface';
 
 interface AuthWebSocket extends WebSocket {
   id: string;

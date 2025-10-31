@@ -9,14 +9,14 @@ import { CreateTodoDTO } from './dto/create-todo.dto';
 import { PriorityEnum } from './enum/priority.enum';
 import { StatusTodo } from './enum/status-todo.enum';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Todo } from 'src/entity/todo.entity';
+import { Todo } from 'src/modules/todo/entity/todo.entity';
 import { ILike, Repository } from 'typeorm';
-import { User } from 'src/entity/user.entity';
+import { User } from 'src/modules/auth/entity/user.entity';
 import { ResponseTodo } from './interface/todo.interface';
-import { TodoGateWay } from '../gateway/todo.gateway';
 import { TodoAction } from './WSEvent';
 import { getPagination } from 'src/services/paginate.service';
 import { TodoQueue } from 'src/redis/bullmq/queue/todo/todo.queue';
+import { TodoGateWay } from 'src/gateway/todo.gateway';
 
 const TTL = 60;
 @Injectable()

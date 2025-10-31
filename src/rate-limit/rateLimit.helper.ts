@@ -2,7 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import {
   ReqHttpRateLimit,
   WsClientRateLimit,
-} from 'src/rate-limit/rateLimit.req-interface';
+} from 'src/rate-limit/interface/rateLimit.req-interface';
 
 export function getHttpIp(req: ReqHttpRateLimit): string {
   const cfIp = req.headers?.['cf-connecting-ip'];

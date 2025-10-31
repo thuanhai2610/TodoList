@@ -12,11 +12,11 @@ import { LoginDTO } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from 'src/entity/user.entity';
+import { User } from 'src/modules/auth/entity/user.entity';
 import { Repository } from 'typeorm';
 import { PayloadRFToken, ResponseUser } from './interface/login.interface';
 import { AuthQueue } from 'src/redis/bullmq/queue/auth/auth.queue';
-import { TodoService } from 'src/features/todo/todo.service';
+import { TodoService } from 'src/modules/todo/todo.service';
 
 @Injectable()
 export class AuthService {

@@ -1,4 +1,4 @@
-import { ResponseUser } from 'src/auth/interface/login.interface';
+import { ResponseUser } from 'src/modules/auth/interface/login.interface';
 import { StatusTodo } from '../enum/status-todo.enum';
 import { PriorityEnum } from '../enum/priority.enum';
 

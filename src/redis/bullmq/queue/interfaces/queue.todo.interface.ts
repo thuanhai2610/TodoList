@@ -1,5 +1,5 @@
-import { Todo } from 'src/entity/todo.entity';
-import { CreateTodoDTO } from 'src/features/todo/dto/create-todo.dto';
+import { Todo } from 'src/modules/todo/entity/todo.entity';
+import { CreateTodoDTO } from 'src/modules/todo/dto/create-todo.dto';
 
 export interface QueueTodoInterface extends CreateTodoDTO {
   dto: CreateTodoDTO;

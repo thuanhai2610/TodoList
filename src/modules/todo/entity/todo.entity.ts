@@ -1,5 +1,5 @@
-import { PriorityEnum } from '../features/todo/enum/priority.enum';
-import { StatusTodo } from '../features/todo/enum/status-todo.enum';
+import { PriorityEnum } from '../enum/priority.enum';
+import { StatusTodo } from '../enum/status-todo.enum';
 import {
   Column,
   CreateDateColumn,
@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import { User } from '../../auth/entity/user.entity';
 import { MaxLength } from 'class-validator';
 
 @Entity()

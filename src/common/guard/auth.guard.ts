@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { PayloadRFToken } from 'src/auth/interface/login.interface';
-import { RequestUser } from 'src/features/todo/interface/todo.interface';
+import { PayloadRFToken } from 'src/modules/auth/interface/login.interface';
+import { RequestUser } from 'src/modules/todo/interface/todo.interface';
 
 @Injectable()
 export class AuthGuard implements CanActivate {

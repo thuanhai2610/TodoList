@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { CreateTodoDTO } from './dto/create-todo.dto';
 import { TodoService } from './todo.service';
-import { AuthGuard } from 'src/guard/auth.guard';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 import { UpdateTodoDTO } from './dto/update-todo.dto';
 import { RequestUser } from './interface/todo.interface';
 

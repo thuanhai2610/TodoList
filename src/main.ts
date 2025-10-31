@@ -3,8 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as express from 'express';
 import * as cookieParser from 'cookie-parser';
-import { ResponseInterceptor } from './interceptor/response.interceptor';
-import { HandleException } from './interceptor/exception-filter';
+import { ResponseInterceptor } from './common/interceptor/response.interceptor';
+import { HandleException } from './common/filter/exception-filter';
 import { WsAdapter } from '@nestjs/platform-ws';
 async function bootstrap() {
   const PORT = process.env.PORT || 3000;

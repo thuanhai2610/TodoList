@@ -1,5 +1,5 @@
-import { Todo } from './src/entity/todo.entity';
-import { User } from './src/entity/user.entity';
+import { Todo } from './src/modules/todo/entity/todo.entity';
+import { User } from './src/modules/auth/entity/user.entity';
 import { DataSource } from 'typeorm';
 import 'dotenv/config';
 

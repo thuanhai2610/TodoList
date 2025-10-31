@@ -3,8 +3,8 @@ import { ThrottlerGuard, ThrottlerRequest } from '@nestjs/throttler';
 import {
   ReqHttpRateLimit,
   WsClientRateLimit,
-} from 'src/rate-limit/rateLimit.req-interface';
-import { getHttpIp, getWsIp } from 'src/rate-limit/rateLimit.utils';
+} from 'src/rate-limit/interface/rateLimit.req-interface';
+import { getHttpIp, getWsIp } from 'src/rate-limit/rateLimit.helper';
 
 @Injectable()
 export class IpThrottlerGuard extends ThrottlerGuard {

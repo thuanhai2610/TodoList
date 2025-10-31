@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Todo } from 'src/entity/todo.entity';
-import { User } from 'src/entity/user.entity';
-import { CreateTodoDTO } from 'src/features/todo/dto/create-todo.dto';
-import { PriorityEnum } from 'src/features/todo/enum/priority.enum';
-import { StatusTodo } from 'src/features/todo/enum/status-todo.enum';
+import { Todo } from 'src/modules/todo/entity/todo.entity';
+import { User } from 'src/modules/auth/entity/user.entity';
+import { CreateTodoDTO } from 'src/modules/todo/dto/create-todo.dto';
+import { PriorityEnum } from 'src/modules/todo/enum/priority.enum';
+import { StatusTodo } from 'src/modules/todo/enum/status-todo.enum';
 import { getDuration } from 'src/services/paginate.service';
 import { Repository } from 'typeorm';
 

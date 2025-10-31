@@ -1,4 +1,4 @@
-import { RateLimitConfig } from './rate-interface';
+import { RateLimitConfig } from '../rate-limit/interface/rate-interface';
 
 export const RATE_LIMIT_CONFIG: RateLimitConfig = {
   TTL: 10000,
