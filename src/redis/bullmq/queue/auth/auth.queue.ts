@@ -8,8 +8,8 @@ import { ListenAuthQueue } from 'src/redis/bullmq/processor';
 export class AuthQueue {
   constructor(@InjectQueue(BullMQAction.AuthQueue) private authQueue: Queue) {}
 
-  async sendOtp(email: string) {
-    await this.authQueue.add(ListenAuthQueue.SendOTP, email, {
+  async sendWelcome(email: string) {
+    await this.authQueue.add(ListenAuthQueue.SendWelcome, email, {
       removeOnComplete: true,
       removeOnFail: 5000,
     });

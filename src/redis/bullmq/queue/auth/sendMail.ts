@@ -5,7 +5,7 @@ import * as nodemailer from 'nodemailer';
 export class SendMail {
   constructor() {}
 
-  async sendMail(to: string) {
+  async SendWelcome(to: string) {
     const transport = nodemailer.createTransport({
       service: 'gmail',
       auth: {

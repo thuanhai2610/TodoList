@@ -12,17 +12,17 @@ export class AuthQueueProcessor extends WorkerHost {
 
   async process(job: Job): Promise<any> {
     switch (job.name) {
-      case ListenAuthQueue.SendOTP:
-        return await this.sendOTP(job);
+      case ListenAuthQueue.SendWelcome:
+        return await this.SendWelcome(job);
         break;
       default:
         break;
     }
   }
 
-  async sendOTP(job: Job) {
+  async SendWelcome(job: Job) {
     const email = job.data as string;
-    await this.sendMail.sendMail(email);
+    await this.sendMail.SendWelcome(email);
     return { success: true, email };
   }
 }

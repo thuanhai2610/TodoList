@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,11 +12,18 @@ import { AuthService } from './auth.service';
 import { RegisterDTO } from './dto/register.dto';
 import { LoginDTO } from './dto/login.dto';
 import { Response, Request } from 'express';
+import { RequestUser } from '../todo/interface/todo.interface';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+  @Post('send-otp')
+  sendOtp(@Body('email') email: string) {
+    console.log(email);
 
+    if (!email) throw new BadRequestException('Email is not empty');
+    return this.authService.sendOtp(email);
+  }
   @Post('register')
   register(@Body() dto: RegisterDTO) {
     return this.authService.register(dto);
@@ -45,11 +53,8 @@ export class AuthController {
   }
 
   @Delete()
-  delete(@Req() req: Request) {
-    const authHeader = req.headers['authorization'] as string;
-    if (!authHeader || !authHeader.startsWith('Bearer'))
-      throw new UnauthorizedException('Access token is missing ');
-    const accessToken = authHeader.split(' ')[1];
-    return this.authService.deleteAccout(accessToken);
+  delete(@Req() req: RequestUser) {
+    const { userId } = req.user;
+    return this.authService.deleteAccout(userId);
   }
 }

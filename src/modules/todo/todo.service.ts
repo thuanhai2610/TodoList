@@ -17,6 +17,7 @@ import { TodoAction } from './WSEvent';
 import { getPagination } from 'src/services/paginate.service';
 import { TodoQueue } from 'src/redis/bullmq/queue/todo/todo.queue';
 import { TodoGateWay } from 'src/gateway/todo.gateway';
+import { UpdateTodoDTO } from './dto/update-todo.dto';
 
 const TTL = 60;
 @Injectable()
@@ -123,16 +124,18 @@ export class TodoService {
     }
   }
 
-  async update(id: string, dto: Partial<CreateTodoDTO>, userId: string) {
+  async update(id: string, dto: Partial<UpdateTodoDTO>, userId: string) {
     const key = `${this.key}:${userId}:${id}`;
-    const updateDuration = this.getDuration(dto.duration);
+    const updateDuration = dto.duration
+      ? undefined
+      : this.getDuration(dto.duration);
     const findEntity = await this.todoRepository.findOne({
       where: { todoId: id, user: { userId } },
     });
 
     if (!findEntity) throw new NotFoundException('Todo not found!');
     Object.assign(findEntity, dto, {
-      duration: updateDuration ?? new Date().toISOString(),
+      duration: updateDuration ?? findEntity.duration,
       updatedAt: new Date().toISOString(),
     });
 

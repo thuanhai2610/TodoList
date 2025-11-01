@@ -1,5 +1,5 @@
 export const ListenAuthQueue = {
-  SendOTP: 'SendOTP',
+  SendWelcome: 'SendWelcome',
 } as const;
 
 export const ListenTodoQueue = {

@@ -17,12 +17,15 @@ import { Repository } from 'typeorm';
 import { PayloadRFToken, ResponseUser } from './interface/login.interface';
 import { AuthQueue } from 'src/redis/bullmq/queue/auth/auth.queue';
 import { TodoService } from 'src/modules/todo/todo.service';
+import { RedisClientType } from 'redis';
+import { RedisPubSub } from 'src/common/constant/redis-pubsub.constant';
 
 @Injectable()
 export class AuthService {
   private key = 'users';
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    @Inject('REDIS_PUB') private readonly redisPub: RedisClientType,
     private readonly jwtService: JwtService,
     private readonly authQueue: AuthQueue,
     private readonly todoService: TodoService,
@@ -69,9 +72,11 @@ export class AuthService {
     };
 
     const accessToken = this.generateAccessToken(payload);
-    await this.generateRefreshToken(payload, res);
+    await Promise.all([
+      this.generateRefreshToken(payload, res),
+      this.authQueue.sendWelcome(email),
+    ]);
     const { password: _, isVerify: __, isBlock: ___, ...safeUser } = userDB;
-    await this.authQueue.sendOtp(email);
     return {
       message: 'Register success',
       accessToken,
@@ -158,12 +163,6 @@ export class AuthService {
         },
       );
       const key = `${this.key}:isBlocked:${payload.email}`;
-      if (await this.redis.get(key)) {
-        const blockUser = await this.userRepository.update(payload.email, {
-          isBlock: true,
-        });
-        if (blockUser) throw new UnauthorizedException('You is dissing');
-      }
       const now = Math.floor(Date.now() / 1000);
       const ttl = Math.max(0, payload.exp - now);
       await this.redis.set(key, accessToken.toString(), 'EX', ttl);
@@ -171,26 +170,24 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token', error);
     }
     return {
-      message: `You is logut and blocked login. Wait 15 minutes`,
+      message: `You is logout and block login. Wait 15 minutes`,
     };
   }
 
-  async deleteAccout(accessToken: string) {
-    try {
-      const payload: PayloadRFToken = await this.jwtService.verify(
-        accessToken,
-        { secret: process.env.JWT_ACCESS_TOKEN },
-      );
-      const userId = payload.userId;
-      const userExist = await this.userRepository.findOneBy({ userId });
-      if (!userExist) throw new Error('Accoutn not found!');
-      await this.todoService.deleteTods(userId);
-      await this.userRepository.remove(userExist);
-    } catch (error) {
-      throw new UnauthorizedException('Invalid token', error);
-    }
+  async deleteAccout(userId: string) {
+    const userExist = await this.userRepository.findOneBy({ userId });
+    if (!userExist) throw new NotFoundException('Accoutn not found!');
+    await this.todoService.deleteTods(userId);
+    await this.userRepository.remove(userExist);
+
     return {
       message: `Delete accout success`,
     };
+  }
+
+   sendOtp(email: string) {
+    console.log(email);
+
+     this.redisPub.publish(RedisPubSub.SendOTP, JSON.stringify({ email }));
   }
 }

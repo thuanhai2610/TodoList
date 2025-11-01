@@ -6,13 +6,13 @@ import { RedisModule } from './redis/redis.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { join } from 'path';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { RATE_LIMIT_CONFIG } from './config/rateLimit.config';
 import { APP_GUARD } from '@nestjs/core';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { BullMQModule } from './redis/bullmq/bullmq.module';
+import { databaseConfig } from './config/database.config';
 
 @Module({
   imports: [
@@ -22,16 +22,7 @@ import { BullMQModule } from './redis/bullmq/bullmq.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql',
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: parseInt(configService.get<string>('DB_PORT', '3307')),
-        username: configService.get<string>('DB_USER', 'root'),
-        password: configService.get<string>('DB_PASS', 'password'),
-        database: configService.get<string>('DB_NAME', 'TodoList'),
-        entities: [join(__dirname, '/**/*.entity{.ts,.js}')],
-        synchronize: false,
-      }),
+      useFactory: databaseConfig,
     }),
     ThrottlerModule.forRoot({
       throttlers: [
