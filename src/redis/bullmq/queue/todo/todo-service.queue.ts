@@ -5,7 +5,7 @@ import { User } from 'src/modules/auth/entity/user.entity';
 import { CreateTodoDTO } from 'src/modules/todo/dto/create-todo.dto';
 import { PriorityEnum } from 'src/modules/todo/enum/priority.enum';
 import { StatusTodo } from 'src/modules/todo/enum/status-todo.enum';
-import { getDuration } from 'src/services/paginate.service';
+import { getDuration } from 'src/common/untils/paginate.untils';
 import { Repository } from 'typeorm';
 
 @Injectable()

@@ -14,10 +14,11 @@ import { ILike, Repository } from 'typeorm';
 import { User } from 'src/modules/auth/entity/user.entity';
 import { ResponseTodo } from './interface/todo.interface';
 import { TodoAction } from './WSEvent';
-import { getPagination } from 'src/services/paginate.service';
+import { getPagination } from 'src/common/untils/paginate.untils';
 import { TodoQueue } from 'src/redis/bullmq/queue/todo/todo.queue';
-import { TodoGateWay } from 'src/gateway/todo.gateway';
+import { TodoGateWay } from 'src/modules/todo/todo.gateway';
 import { UpdateTodoDTO } from './dto/update-todo.dto';
+import { RedisPubSubTodo } from 'src/common/constant/redis-pubsub.constant';
 
 const TTL = 60;
 @Injectable()
@@ -27,6 +28,7 @@ export class TodoService {
     @Inject(TodoGateWay) private readonly todoGateWay: TodoGateWay,
     private readonly todoQueue: TodoQueue,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    @Inject('REDIS_PUB') private readonly redisPub: Redis,
     @InjectRepository(Todo) private todoRepository: Repository<Todo>,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
@@ -203,5 +205,12 @@ export class TodoService {
       const deletodo = allTods.slice(i, i + sizeDelete);
       await this.todoQueue.deleteTodoQueue(deletodo, userId);
     }
+  }
+
+  async pubTodo(dto: CreateTodoDTO, userId: string) {
+    return await this.redisPub.publish(
+      RedisPubSubTodo.CreateTodo,
+      JSON.stringify({ dto, userId }),
+    );
   }
 }

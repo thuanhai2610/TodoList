@@ -17,13 +17,7 @@ import { RequestUser } from '../todo/interface/todo.interface';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-  @Post('send-otp')
-  sendOtp(@Body('email') email: string) {
-    console.log(email);
 
-    if (!email) throw new BadRequestException('Email is not empty');
-    return this.authService.sendOtp(email);
-  }
   @Post('register')
   register(@Body() dto: RegisterDTO) {
     return this.authService.register(dto);
@@ -56,5 +50,16 @@ export class AuthController {
   delete(@Req() req: RequestUser) {
     const { userId } = req.user;
     return this.authService.deleteAccout(userId);
+  }
+
+  @Post('send-otp')
+  sendOtp(@Body('email') email: string) {
+    if (!email) throw new BadRequestException('Email is not empty');
+    return this.authService.sendOtp(email);
+  }
+
+  @Post('verify-otp')
+  verifyOtp(@Body() body: { otp: string; email: string }) {
+    return this.authService.verifyOtp(body.email, body.otp);
   }
 }

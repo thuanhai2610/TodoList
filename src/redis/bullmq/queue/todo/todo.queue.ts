@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { BullMQAction } from '../../bullmq.name';
 import { Queue } from 'bullmq';
 import { CreateTodoDTO } from 'src/modules/todo/dto/create-todo.dto';
-import { ListenTodoQueue } from '../../processor';
+import { ListenTodoQueue } from '../../../../common/constant/processor.constant';
 import { Todo } from 'src/modules/todo/entity/todo.entity';
 
 @Injectable()

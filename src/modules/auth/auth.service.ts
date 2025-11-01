@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -17,15 +18,14 @@ import { Repository } from 'typeorm';
 import { PayloadRFToken, ResponseUser } from './interface/login.interface';
 import { AuthQueue } from 'src/redis/bullmq/queue/auth/auth.queue';
 import { TodoService } from 'src/modules/todo/todo.service';
-import { RedisClientType } from 'redis';
-import { RedisPubSub } from 'src/common/constant/redis-pubsub.constant';
+import { RedisPubSubAuth } from 'src/common/constant/redis-pubsub.constant';
 
 @Injectable()
 export class AuthService {
   private key = 'users';
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
-    @Inject('REDIS_PUB') private readonly redisPub: RedisClientType,
+    @Inject('REDIS_PUB') private readonly redisPub: Redis,
     private readonly jwtService: JwtService,
     private readonly authQueue: AuthQueue,
     private readonly todoService: TodoService,
@@ -44,7 +44,7 @@ export class AuthService {
       name: dto.name,
       email: dto.email,
       password: hassPass,
-      isVerify: true,
+      isVerify: false,
     };
     const newUser = this.userRepository.create(user);
     const createUser = await this.userRepository.save(newUser);
@@ -59,10 +59,13 @@ export class AuthService {
     if (blockToken)
       throw new UnauthorizedException('Token is block. Wait a few minute!');
     const userDB = await this.userRepository.findOneBy({ email });
+    if (!userDB) throw new NotFoundException('Email is not correct');
+
     if (userDB && userDB.isBlock) {
       throw new UnauthorizedException('User is block by Admin!');
     }
-    if (!userDB) throw new NotFoundException('Email is not correct');
+    if (userDB && userDB.isVerify === false)
+      throw new BadRequestException('Email is not verify');
     const isMatch = await bcrypt.compare(password, userDB.password);
     if (!isMatch) throw new NotFoundException('Password not correct!');
     const payload = {
@@ -78,7 +81,7 @@ export class AuthService {
     ]);
     const { password: _, isVerify: __, isBlock: ___, ...safeUser } = userDB;
     return {
-      message: 'Register success',
+      message: 'Login success',
       accessToken,
       data: safeUser as ResponseUser,
     };
@@ -185,9 +188,25 @@ export class AuthService {
     };
   }
 
-   sendOtp(email: string) {
-    console.log(email);
+  async sendOtp(email: string) {
+    await this.redisPub.publish(
+      RedisPubSubAuth.SendOTP,
+      JSON.stringify({ email }),
+    );
+  }
 
-     this.redisPub.publish(RedisPubSub.SendOTP, JSON.stringify({ email }));
+  async verifyOtp(email: string, otp: string) {
+    const key = `otps:${email}:${otp}`;
+    const verify = await this.redis.get(key);
+    if (verify) {
+      const user = await this.userRepository.findOneBy({ email });
+      if (!user) throw new BadRequestException('User not found');
+      user.isVerify = true;
+      await this.userRepository.save(user);
+      if (!user) throw new NotFoundException('Verify fail. Please check email');
+      await this.redis.del(key);
+      return { message: 'Verify is success full' };
+    }
+    return { message: 'OTP not correct' };
   }
 }

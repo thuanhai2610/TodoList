@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BullMQAction } from '../../bullmq.name';
-import { ListenTodoQueue } from '../../processor';
+import { ListenTodoQueue } from '../../../../common/constant/processor.constant';
 import { TodoServiceQueue } from './todo-service.queue';
 import { Job } from 'bullmq';
 

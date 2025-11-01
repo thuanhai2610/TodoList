@@ -1,11 +1,11 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { createClient } from 'redis';
-import type { RedisClientType } from 'redis';
+import { SubModule } from './pubsub/sub/sub.module';
+
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, SubModule],
   providers: [
     {
       provide: 'REDIS_CLIENT',
@@ -29,40 +29,31 @@ import type { RedisClientType } from 'redis';
     {
       provide: 'REDIS_PUB',
       inject: [ConfigService],
-      useFactory: async (
-        configService: ConfigService,
-      ): Promise<RedisClientType> => {
-        const redisUrl =
-          configService.get<string>('REDIS_URL_CONNECT') ??
-          'redis://localhost:6379';
-        const client: RedisClientType = createClient({
-          url: redisUrl,
-        }) as RedisClientType;
-        await client.connect();
-        console.log('Sub connect');
-
+      useFactory: async (configService: ConfigService): Promise<Redis> => {
+        const client = new Redis({
+          host: configService.get<string>('HOST_REDIS') || 'localhost',
+          port: configService.get<number>('PORT_REDIS') || 6379,
+          password: configService.get<string>('REDIS_PASSWORD'),
+        });
+        client.on('connect', () => console.log('Pub connect'));
         return client;
       },
     },
     {
       provide: 'REDIS_SUB',
       inject: [ConfigService],
-      useFactory: async (
-        configService: ConfigService,
-      ): Promise<RedisClientType> => {
-        const redisUrl =
-          configService.get<string>('REDIS_URL_CONNECT') ??
-          'redis://localhost:6379';
-        const client: RedisClientType = createClient({
-          url: redisUrl,
-        }) as RedisClientType;
-        await client.connect();
-        console.log('Pub connect');
+      useFactory: async (configService: ConfigService): Promise<Redis> => {
+        const client = new Redis({
+          host: configService.get<string>('HOST_REDIS') || 'localhost',
+          port: configService.get<number>('PORT_REDIS') || 6379,
+          password: configService.get<string>('REDIS_PASSWORD'),
+        });
+        client.on('connect', () => console.log('Sub connect'));
 
         return client;
       },
     },
   ],
-  exports: ['REDIS_CLIENT', 'REDIS_BULLMQ', 'REDIS_PUB'],
+  exports: ['REDIS_CLIENT', 'REDIS_BULLMQ', 'REDIS_PUB', 'REDIS_SUB'],
 })
 export class RedisModule {}

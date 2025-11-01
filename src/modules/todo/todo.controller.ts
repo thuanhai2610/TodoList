@@ -63,4 +63,9 @@ export class TodoController {
     const { userId } = req.user;
     return this.todoService.remove(id, userId);
   }
+
+  @Post('pub-todo')
+  async pubTodo(@Body() dto: CreateTodoDTO, @Req() req: RequestUser) {
+    return await this.todoService.pubTodo(dto, req.userId);
+  }
 }

@@ -9,12 +9,12 @@ export class OTPService {
   async generateOTP(email: string) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const key = `otps:${email}:${otp}`;
-    const ttlOtp = 60 * 60 * 5;
+    const ttlOtp = 60 * 10;
     if (await this.redis.get(key)) {
       await this.redis.del(key);
     }
     await Promise.all([
-      this.redis.set(key, email, 'EX', ttlOtp),
+      this.redis.set(key, JSON.stringify(email), 'EX', ttlOtp),
       this.sendOtp(email, otp),
     ]);
   }
@@ -28,6 +28,7 @@ export class OTPService {
       },
     });
     await transport.sendMail({
+      from: `"My App" <${process.env.MAIL_USER}>`,
       to,
       subject: 'Mã OTP mới của bạn',
       text: `Mã OTP mới của bạn là: ${otp}. Mã này có hiệu lực trong 10 phút.`,

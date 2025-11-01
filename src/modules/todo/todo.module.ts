@@ -10,7 +10,7 @@ import { JwtModuleConfig } from 'src/config/jwt.module';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { BullMQModule } from 'src/redis/bullmq/bullmq.module';
-import { GateWayModule } from 'src/gateway/gateway.module';
+import { TodoGateWay } from './todo.gateway';
 
 @Module({
   imports: [
@@ -18,11 +18,10 @@ import { GateWayModule } from 'src/gateway/gateway.module';
     JwtModuleConfig,
     TypeOrmModule.forFeature([Todo, User]),
     EventEmitterModule.forRoot(),
-    GateWayModule,
     BullMQModule,
   ],
   controllers: [TodoController],
-  providers: [TodoService, AuthGuard, JwtService],
-  exports: [TodoService],
+  providers: [TodoService, AuthGuard, JwtService, TodoGateWay],
+  exports: [TodoService, TodoGateWay],
 })
 export class TodoModule {}
